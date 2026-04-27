@@ -41,4 +41,4 @@ export function getSession(id: string): Session | undefined {
 export function updateSession(id: string, patch: Partial<Session>): void {
   const s = store.get(id);
   if (s) Object.assign(s, patch);
-                                     }
+}

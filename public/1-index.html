@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Luffy 人生私董会</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --amber:  #EF9F27;
+  --coral:  #D85A30;
+  --amber-bg: #FAEEDA;
+  --coral-bg: #FAECE7;
+  --text:   #2c2c2a;
+  --muted:  #73726c;
+  --border: rgba(0,0,0,0.08);
+  --bg:     #f5f4f0;
+  --card:   #ffffff;
+  --radius: 10px;
+}
+
+body {
+  font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* ── Header ── */
+header {
+  background: #1a1916;
+  padding: 28px 32px 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.header-inner { max-width: 1100px; margin: 0 auto; }
+.logo { color: #fff; font-size: 22px; font-weight: 600; letter-spacing: 0.02em; }
+.logo span { color: var(--amber); }
+.subtitle { color: rgba(255,255,255,0.4); font-size: 13px; margin-top: 4px; }
+
+/* ── Input area ── */
+.input-section {
+  max-width: 1100px;
+  margin: 32px auto 0;
+  padding: 0 24px;
+}
+.input-card {
+  background: var(--card);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+.input-card label {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+textarea {
+  width: 100%;
+  border: 1px solid rgba(0,0,0,0.12);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--text);
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.6;
+  outline: none;
+  transition: border-color 0.15s;
+  background: #fafaf8;
+}
+textarea:focus { border-color: var(--amber); }
+textarea::placeholder { color: #b0ae9c; }
+
+.demo-qs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.demo-q {
+  font-size: 12px;
+  padding: 5px 12px;
+  border: 0.5px solid var(--border);
+  border-radius: 20px;
+  cursor: pointer;
+  color: var(--muted);
+  background: var(--bg);
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.demo-q:hover { border-color: var(--amber); color: var(--text); }
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+button#summon {
+  background: #1a1916;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 22px;
+  font-size: 14px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+button#summon:hover:not(:disabled) { background: #2d2c28; }
+button#summon:active:not(:disabled) { transform: scale(0.98); }
+button#summon:disabled { opacity: 0.5; cursor: not-allowed; }
+#status-text { font-size: 13px; color: var(--muted); }
+
+/* ── Cards grid ── */
+.cards-section {
+  max-width: 1100px;
+  margin: 24px auto 48px;
+  padding: 0 24px;
+}
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+@media (max-width: 768px) { .cards-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 480px) { .cards-grid { grid-template-columns: 1fr; } }
+
+.card {
+  background: var(--card);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 220px;
+}
+.card.western { border-top: 3px solid var(--amber); }
+.card.eastern  { border-top: 3px solid var(--coral); }
+
+.card-head {
+  padding: 14px 16px 10px;
+  border-bottom: 0.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.western .avatar { background: var(--amber-bg); color: #633806; }
+.eastern .avatar  { background: var(--coral-bg);  color: #712B13; }
+.card-name  { font-size: 14px; font-weight: 600; color: var(--text); }
+.card-role  { font-size: 12px; color: var(--muted); margin-top: 1px; }
+.card-badge {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+.western .card-badge { background: var(--amber-bg); color: #854F0B; }
+.eastern  .card-badge { background: var(--coral-bg);  color: #993C1D; }
+
+.card-body {
+  padding: 14px 16px;
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--text);
+}
+.placeholder {
+  color: #c0bfb5;
+  font-size: 13px;
+}
+
+/* ── Streaming cursor ── */
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+.cursor {
+  display: inline-block;
+  width: 2px;
+  height: 14px;
+  background: var(--amber);
+  margin-left: 2px;
+  vertical-align: middle;
+  animation: blink 0.7s ease-in-out infinite;
+}
+.eastern .cursor { background: var(--coral); }
+
+/* ── Thinking indicator ── */
+@keyframes thinking { 0%,100%{opacity:0.3} 50%{opacity:1} }
+.thinking-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: thinking 1s ease-in-out infinite;
+}
+.thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+.thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+.thinking-dots {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-top: 4px;
+}
+
+/* ── Done checkmark ── */
+.done-mark {
+  font-size: 11px;
+  color: #3B6D11;
+  background: #EAF3DE;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">Luffy <span>人生私董会</span></div>
+    <div class="subtitle">六位智者，同时为你出谋划策</div>
+  </div>
+</header>
+
+<section class="input-section">
+  <div class="input-card">
+    <label>你的人生困惑</label>
+    <textarea id="question" rows="3"
+      placeholder="说说你正在面对的选择或困境……"></textarea>
+
+    <div class="demo-qs">
+      <span class="demo-q" onclick="setQ(this)">我要不要辞职去创业？手里有个想法，但现在工作稳定，家里有压力。</span>
+      <span class="demo-q" onclick="setQ(this)">我知道自己应该更努力，但就是做不到，怎么破？</span>
+      <span class="demo-q" onclick="setQ(this)">该留在大城市还是回老家？在北京工作8年了，很迷茫。</span>
+    </div>
+
+    <div class="actions">
+      <button id="summon" onclick="summon()">召集私董会 →</button>
+      <span id="status-text"></span>
+    </div>
+  </div>
+</section>
+
+<section class="cards-section">
+  <div class="cards-grid" id="grid">
+
+    <!-- 马斯克 -->
+    <div class="card western" id="card-musk">
+      <div class="card-head">
+        <div class="avatar">M</div>
+        <div>
+          <div class="card-name">马斯克</div>
+          <div class="card-role">第一性原理</div>
+        </div>
+        <div class="card-badge">西方</div>
+      </div>
+      <div class="card-body">
+        <div class="placeholder">等待召集…</div>
+      </div>
+    </div>
+
+    <!-- 芒格 -->
+    <div class="card western" id="card-munger">
+      <div class="card-head">
+        <div class="avatar">芒</div>
+        <div>
+          <div class="card-name">芒格</div>
+          <div class="card-role">逆向思维</div>
+        </div>
+        <div class="card-badge">西方</div>
+      </div>
+      <div class="card-body">
+        <div class="placeholder">等待召集…</div>
+      </div>
+    </div>
+
+    <!-- Naval -->
+    <div class="card western" id="card-naval">
+      <div class="card-head">
+        <div class="avatar">N</div>
+        <div>
+          <div class="card-name">Naval</div>
+          <div class="card-role">财富与自由</div>
+        </div>
+        <div class="card-badge">西方</div>
+      </div>
+      <div class="card-body">
+        <div class="placeholder">等待召集…</div>
+      </div>
+    </div>
+
+    <!-- 曾国藩 -->
+    <div class="card eastern" id="card-zeng">
+      <div class="card-head">
+        <div class="avatar">曾</div>
+        <div>
+          <div class="card-name">曾国藩</div>
+          <div class="card-role">修身立业</div>
+        </div>
+        <div class="card-badge">东方</div>
+      </div>
+      <div class="card-body">
+        <div class="placeholder">等待召集…</div>
+      </div>
+    </div>
+
+    <!-- 王阳明 -->
+    <div class="card eastern" id="card-yangming">
+      <div class="card-head">
+        <div class="avatar">王</div>
+        <div>
+          <div class="card-name">王阳明</div>
+          <div class="card-role">知行合一</div>
+        </div>
+        <div class="card-badge">东方</div>
+      </div>
+      <div class="card-body">
+        <div class="placeholder">等待召集…</div>
+      </div>
+    </div>
+
+    <!-- 老子 -->
+    <div class="card eastern" id="card-laozi">
+      <div class="card-head">
+        <div class="avatar">老</div>
+        <div>
+          <div class="card-name">老子</div>
+          <div class="card-role">道法自然</div>
+        </div>
+        <div class="card-badge">东方</div>
+      </div>
+      <div class="card-body">
+        <div class="placeholder">等待召集…</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<script>
+const PERSONAS = ['musk','munger','naval','zeng','yangming','laozi'];
+
+// ── 工具 ─────────────────────────────────────────────────────────────────────
+function body(id) {
+  return document.querySelector(`#card-${id} .card-body`);
+}
+function setStatus(text) {
+  document.getElementById('status-text').textContent = text;
+}
+function setQ(el) {
+  document.getElementById('question').value = el.textContent.trim();
+  document.getElementById('question').focus();
+}
+
+// ── 重置所有卡片 ──────────────────────────────────────────────────────────────
+function resetCards() {
+  PERSONAS.forEach(id => {
+    body(id).innerHTML = '<div class="thinking-dots">' +
+      '<div class="thinking-dot"></div>' +
+      '<div class="thinking-dot"></div>' +
+      '<div class="thinking-dot"></div>' +
+    '</div>';
+  });
+}
+
+// ── 主流程 ────────────────────────────────────────────────────────────────────
+async function summon() {
+  const question = document.getElementById('question').value.trim();
+  if (!question) {
+    document.getElementById('question').focus();
+    return;
+  }
+
+  const btn = document.getElementById('summon');
+  btn.disabled = true;
+  setStatus('正在召集…');
+  resetCards();
+
+  // 每个 persona 已收到的文本
+  const texts = {};
+  PERSONAS.forEach(id => texts[id] = '');
+
+  // 标记已完成的幕僚数
+  let doneCount = 0;
+
+  try {
+    const resp = await fetch('/api/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question }),
+    });
+
+    if (!resp.ok) {
+      setStatus('请求失败：' + resp.status);
+      btn.disabled = false;
+      return;
+    }
+
+    const reader  = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let   buffer  = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      // 正确 buffer SSE：不能假设每次 read 都是完整的事件
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop(); // 最后一段可能不完整，留待下次
+
+      for (const part of parts) {
+        for (const line of part.split('\n')) {
+          if (!line.startsWith('data: ')) continue;
+          let evt;
+          try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+          handleEvent(evt, texts);
+
+          if (evt.type === 'done') {
+            doneCount++;
+            setStatus(`${doneCount} / ${PERSONAS.length} 位幕僚已发言`);
+          }
+          if (evt.type === 'all_done') {
+            setStatus('全部发言完毕');
+          }
+        }
+      }
+    }
+  } catch (err) {
+    setStatus('连接出错：' + err.message);
+  }
+
+  btn.disabled = false;
+}
+
+// ── 处理单个 SSE 事件 ─────────────────────────────────────────────────────────
+function handleEvent(evt, texts) {
+  const { type, persona } = evt;
+  if (!persona) return;
+  const b = body(persona);
+  if (!b) return;
+
+  if (type === 'start') {
+    texts[persona] = '';
+    b.innerHTML = '<span class="cursor"></span>';
+  }
+
+  if (type === 'chunk') {
+    texts[persona] += evt.text;
+    // 把换行转成 <br>，末尾加流式光标
+    const html = texts[persona]
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/\n/g,'<br>');
+    b.innerHTML = html + '<span class="cursor"></span>';
+  }
+
+  if (type === 'done') {
+    // 移除光标，完成状态
+    const html = (texts[persona] || '')
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/\n/g,'<br>');
+    b.innerHTML = html;
+
+    // 在卡片 head 加完成标记
+    const head = document.querySelector(`#card-${persona} .card-head`);
+    const existing = head.querySelector('.done-mark');
+    if (!existing) {
+      const mark = document.createElement('span');
+      mark.className = 'done-mark';
+      mark.textContent = '已发言';
+      // 替换 badge
+      const badge = head.querySelector('.card-badge');
+      if (badge) badge.replaceWith(mark);
+    }
+  }
+
+  if (type === 'error') {
+    b.innerHTML = `<span style="color:#A32D2D;font-size:13px">出错：${evt.message}</span>`;
+  }
+}
+
+// ── 快捷键：Cmd/Ctrl + Enter 提交 ─────────────────────────────────────────────
+document.getElementById('question').addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') summon();
+});
+</script>
+
+</body>
+</html>

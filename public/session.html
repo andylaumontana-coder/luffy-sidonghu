@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>私董会 · Luffy</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --amber:#EF9F27; --amber-bg:#FAEEDA; --amber-dark:#633806;
+  --coral:#D85A30; --coral-bg:#FAECE7; --coral-dark:#712B13;
+  --text:#2c2c2a; --muted:#73726c; --hint:#b0ae9c;
+  --border:rgba(0,0,0,0.08); --bg:#f5f4f0; --card:#fff;
+  --r:10px;
+}
+body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+/* ── Header ── */
+header{background:#1a1916;padding:18px 28px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:10}
+.logo{color:#fff;font-size:17px;font-weight:600}.logo span{color:var(--amber)}
+.steps{display:flex;align-items:center;gap:0;margin-left:auto}
+.step-item{display:flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:12px;color:rgba(255,255,255,0.35);transition:all .3s}
+.step-item.active{color:#fff;background:rgba(255,255,255,0.1)}
+.step-item.done{color:rgba(255,255,255,0.55)}
+.step-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+.step-sep{color:rgba(255,255,255,0.2);font-size:12px;padding:0 2px}
+
+/* ── Main layout ── */
+main{max-width:1100px;margin:0 auto;padding:28px 24px 60px}
+
+/* ── Phase containers ── */
+.phase{display:none}
+.phase.active{display:block}
+
+/* ── Topic banner (shown in step 4+) ── */
+.topic-banner{background:var(--card);border:0.5px solid var(--border);border-left:3px solid var(--amber);border-radius:var(--r);padding:14px 18px;margin-bottom:20px}
+.topic-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px}
+.topic-text{font-size:14px;line-height:1.6;color:var(--text)}
+
+/* ── Facilitator chat ── */
+.chat-wrap{background:var(--card);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden}
+.chat-messages{padding:20px;min-height:200px;max-height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+.msg{display:flex;gap:10px;align-items:flex-start}
+.msg.user{flex-direction:row-reverse}
+.msg-avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0}
+.msg.assistant .msg-avatar{background:var(--amber-bg);color:var(--amber-dark)}
+.msg.user .msg-avatar{background:#E6F1FB;color:#0C447C}
+.msg-bubble{max-width:75%;padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.65}
+.msg.assistant .msg-bubble{background:var(--bg);border:0.5px solid var(--border)}
+.msg.user .msg-bubble{background:#1a1916;color:#fff}
+.chat-input-area{border-top:0.5px solid var(--border);padding:14px 16px;display:flex;gap:10px}
+.chat-input-area textarea{flex:1;border:1px solid rgba(0,0,0,0.12);border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;resize:none;min-height:40px;max-height:100px;outline:none;transition:border-color .15s;background:#fafaf8}
+.chat-input-area textarea:focus{border-color:var(--amber)}
+.chat-actions{display:flex;flex-direction:column;gap:6px;justify-content:flex-end}
+.btn{border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-family:inherit;font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn:disabled{opacity:0.45;cursor:not-allowed}
+.btn-primary{background:#1a1916;color:#fff}.btn-primary:hover:not(:disabled){background:#2d2c28}
+.btn-amber{background:var(--amber-bg);color:var(--amber-dark);border:0.5px solid var(--amber)}.btn-amber:hover:not(:disabled){background:#f5d98a}
+.btn-ghost{background:transparent;color:var(--muted);border:0.5px solid var(--border)}.btn-ghost:hover:not(:disabled){background:var(--bg)}
+.lock-hint{font-size:12px;color:var(--muted);margin-top:10px;padding:0 2px;display:none}
+
+/* ── Typing cursor ── */
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.cursor{display:inline-block;width:2px;height:13px;background:var(--amber);margin-left:1px;vertical-align:middle;animation:blink .7s ease-in-out infinite}
+
+/* ── Persona cards ── */
+.section-title{font-size:13px;font-weight:500;color:var(--muted);margin-bottom:14px;letter-spacing:0.03em}
+.cards-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:700px){.cards-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:460px){.cards-grid{grid-template-columns:1fr}}
+
+.card{background:var(--card);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;min-height:200px}
+.card.western{border-top:3px solid var(--amber)}
+.card.eastern {border-top:3px solid var(--coral)}
+.card-head{padding:12px 14px 10px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:8px}
+.avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0}
+.western .avatar{background:var(--amber-bg);color:var(--amber-dark)}
+.eastern  .avatar{background:var(--coral-bg); color:var(--coral-dark)}
+.card-name{font-size:13px;font-weight:600}
+.card-role{font-size:11px;color:var(--muted);margin-top:1px}
+.card-status{margin-left:auto;font-size:10px;padding:2px 7px;border-radius:8px}
+.western .card-status{background:var(--amber-bg);color:var(--amber-dark)}
+.eastern  .card-status{background:var(--coral-bg); color:var(--coral-dark)}
+.card-body{padding:12px 14px;flex:1;font-size:13px;line-height:1.75;color:var(--text)}
+.placeholder{color:var(--hint);font-size:13px}
+
+@keyframes thinking{0%,100%{opacity:.3}50%{opacity:1}}
+.dots{display:flex;gap:4px;padding-top:2px}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--muted);animation:thinking 1s ease-in-out infinite}
+.dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
+.done-badge{font-size:10px;background:#EAF3DE;color:#27500A;padding:2px 7px;border-radius:8px}
+
+/* ── Summon button ── */
+.summon-wrap{margin-top:24px;display:flex;align-items:center;gap:14px}
+#status-text{font-size:13px;color:var(--muted)}
+
+/* ── Summary ── */
+.summary-card{background:var(--card);border:0.5px solid var(--border);border-radius:var(--r);padding:24px 28px;font-size:14px;line-height:1.8}
+.summary-card h3{font-size:15px;font-weight:600;margin:20px 0 8px;color:var(--text)}
+.summary-card h3:first-child{margin-top:0}
+.summary-card p{color:var(--text);margin-bottom:8px}
+.summary-card ul,.summary-card ol{padding-left:20px;margin-bottom:8px}
+.summary-card li{margin-bottom:4px}
+.summary-card strong{font-weight:600}
+.summary-card hr{border:none;border-top:0.5px solid var(--border);margin:16px 0}
+.summary-card blockquote{border-left:3px solid var(--amber);padding-left:14px;color:var(--muted);font-style:italic;margin:10px 0}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Luffy <span>人生私董会</span></div>
+  <nav class="steps">
+    <div class="step-item active" id="step-nav-2">
+      <span class="step-dot"></span>主持人澄清
+    </div>
+    <span class="step-sep">›</span>
+    <div class="step-item" id="step-nav-4">
+      <span class="step-dot"></span>幕僚发言
+    </div>
+    <span class="step-sep">›</span>
+    <div class="step-item" id="step-nav-7">
+      <span class="step-dot"></span>汇总报告
+    </div>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ── Phase 2: Facilitator dialogue ── -->
+  <div class="phase active" id="phase-2">
+    <div class="chat-wrap">
+      <div class="chat-messages" id="chat-messages"></div>
+      <div class="chat-input-area">
+        <textarea id="user-input" rows="1" placeholder="回复主持人……（Enter 发送，Shift+Enter 换行）"></textarea>
+        <div class="chat-actions">
+          <button class="btn btn-primary" id="btn-send" onclick="sendMessage()">发送</button>
+          <button class="btn btn-amber" id="btn-lock" onclick="lockAndProceed()" style="display:none">召集幕僚 →</button>
+        </div>
+      </div>
+    </div>
+    <p class="lock-hint" id="lock-hint">主持人已锁定议题，点击「召集幕僚」开始发言</p>
+  </div>
+
+  <!-- ── Phase 4: Persona cards ── -->
+  <div class="phase" id="phase-4">
+    <div class="topic-banner" id="topic-banner" style="display:none">
+      <div class="topic-label">本次议题</div>
+      <div class="topic-text" id="topic-text"></div>
+    </div>
+    <p class="section-title">12 位幕僚正在发言 · 同时进行</p>
+    <div class="cards-grid" id="cards-grid"></div>
+    <div class="summon-wrap">
+      <button class="btn btn-amber" id="btn-summary" onclick="goSummary()" style="display:none">查看汇总报告 →</button>
+      <span id="status-text"></span>
+    </div>
+  </div>
+
+  <!-- ── Phase 7: Summary ── -->
+  <div class="phase" id="phase-7">
+    <div class="topic-banner" id="summary-topic" style="display:none">
+      <div class="topic-label">本次议题</div>
+      <div class="topic-text" id="summary-topic-text"></div>
+    </div>
+    <p class="section-title">秘书·综合汇总</p>
+    <div class="summary-card" id="summary-card">
+      <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ── 简易 Markdown 渲染 ────────────────────────────────────────────────────────
+function renderMd(text) {
+  return text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/^### (.+)$/gm,'<h3>$1</h3>')
+    .replace(/^## (.+)$/gm,'<h2 style="font-size:16px;font-weight:600;margin:16px 0 8px">$2</h2>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/^---$/gm,'<hr>')
+    .replace(/^- \[ \] (.+)$/gm,'<li>☐ $1</li>')
+    .replace(/^- (.+)$/gm,'<li>$1</li>')
+    .replace(/(<li>.*<\/li>\n?)+/gs, (m) => `<ul>${m}</ul>`)
+    .replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>')
+    .replace(/⚠️/g,'<span style="color:#A32D2D">⚠️</span>')
+    .replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>')
+    .replace(/^(?!<[h|u|b|l|h])(.+)$/gm,'<p>$1</p>');
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+const params    = new URLSearchParams(location.search);
+const sessionId = params.get('id');
+let   isLocked  = false;
+let   isSending = false;
+
+if (!sessionId) {
+  document.body.innerHTML = '<div style="padding:40px;color:#A32D2D">缺少 session ID，请从首页重新开始。<br><a href="/">返回首页</a></div>';
+}
+
+// ── 步骤导航 ──────────────────────────────────────────────────────────────────
+function setStep(step) {
+  document.querySelectorAll('.phase').forEach(el => el.classList.remove('active'));
+  document.getElementById(`phase-${step}`).classList.add('active');
+  document.querySelectorAll('.step-item').forEach(el => {
+    el.classList.remove('active','done');
+  });
+  const steps = [2,4,7];
+  steps.forEach(s => {
+    const el = document.getElementById(`step-nav-${s}`);
+    if (!el) return;
+    if (s === step) el.classList.add('active');
+    else if (s < step) el.classList.add('done');
+  });
+}
+
+// ── 聊天 ──────────────────────────────────────────────────────────────────────
+function appendMsg(role, html, streaming = false) {
+  const container = document.getElementById('chat-messages');
+  const isAssistant = role === 'assistant';
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.innerHTML = `
+    <div class="msg-avatar">${isAssistant ? '主' : '我'}</div>
+    <div class="msg-bubble">${html}${streaming ? '<span class="cursor"></span>' : ''}</div>
+  `;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  return div.querySelector('.msg-bubble');
+}
+
+function updateBubble(bubble, text, done = false) {
+  const html = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  bubble.innerHTML = html + (done ? '' : '<span class="cursor"></span>');
+  document.getElementById('chat-messages').scrollTop = 99999;
+}
+
+// ── 发送消息给 Facilitator ────────────────────────────────────────────────────
+async function sendMessage(autoMsg = null) {
+  if (isSending) return;
+  const input = document.getElementById('user-input');
+  const msg = autoMsg ?? input.value.trim();
+  if (!msg && !autoMsg) return;
+
+  if (!autoMsg) {
+    appendMsg('user', msg.replace(/\n/g,'<br>'));
+    input.value = '';
+  }
+
+  isSending = true;
+  document.getElementById('btn-send').disabled = true;
+
+  let bubble = null;
+  let fullText = '';
+  let responseLocked = false;
+
+  const resp = await fetch(`/api/sessions/${sessionId}/facilitator`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ message: msg }),
+  });
+
+  const reader  = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let   buffer  = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop();
+    for (const part of parts) {
+      for (const line of part.split('\n')) {
+        if (!line.startsWith('data: ')) continue;
+        let evt; try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+        if (evt.type === 'chunk') {
+          fullText += evt.text;
+          if (!bubble) bubble = appendMsg('assistant', '', true);
+          updateBubble(bubble, fullText);
+        }
+        if (evt.type === 'done') {
+          if (bubble) updateBubble(bubble, fullText, true);
+          responseLocked = evt.locked;
+        }
+      }
+    }
+  }
+
+  isSending = false;
+  document.getElementById('btn-send').disabled = false;
+
+  if (responseLocked || isLocked) {
+    isLocked = true;
+    document.getElementById('btn-lock').style.display = 'block';
+    document.getElementById('btn-send').style.display = 'none';
+    document.getElementById('user-input').disabled = true;
+    document.getElementById('lock-hint').style.display = 'block';
+  }
+}
+
+// ── 锁定议题 → 进入 Step 4 ────────────────────────────────────────────────────
+async function lockAndProceed() {
+  // 读取 session 获取定义的议题
+  const s = await fetch(`/api/sessions/${sessionId}`).then(r => r.json());
+  buildPersonaGrid();
+  setStep(4);
+
+  // 展示议题摘要（提取【议题锁定】后的文字）
+  if (s.definedTopic) {
+    const topicPart = s.definedTopic.split('【议题锁定】')[1]?.trim() ?? s.definedTopic;
+    document.getElementById('topic-text').innerHTML = topicPart.replace(/\n/g,'<br>');
+    document.getElementById('topic-banner').style.display = 'block';
+  }
+
+  startPersonas();
+}
+
+// ── 构建 12 张幕僚卡片 ────────────────────────────────────────────────────────
+const PERSONAS_META = [
+  {id:'jobs',   name:'乔布斯',   tagline:'意义与热爱', school:'western', avatar:'J'},
+  {id:'pg',     name:'PG',       tagline:'本质洞见',   school:'western', avatar:'P'},
+  {id:'musk',   name:'马斯克',   tagline:'第一性原理', school:'western', avatar:'M'},
+  {id:'naval',  name:'Naval',    tagline:'财富与自由', school:'western', avatar:'N'},
+  {id:'munger', name:'芒格',     tagline:'逆向思维',   school:'western', avatar:'芒'},
+  {id:'taleb',  name:'塔勒布',   tagline:'反脆弱',     school:'western', avatar:'T'},
+  {id:'zeng',   name:'曾国藩',   tagline:'修身立业',   school:'eastern', avatar:'曾'},
+  {id:'inamori',name:'稻盛和夫', tagline:'敬天爱人',   school:'eastern', avatar:'稻'},
+  {id:'ren',    name:'任正非',   tagline:'危机长期主义',school:'eastern',avatar:'任'},
+  {id:'zhang',  name:'张一鸣',   tagline:'系统思维',   school:'eastern', avatar:'张'},
+  {id:'yangming',name:'王阳明',  tagline:'知行合一',   school:'eastern', avatar:'王'},
+  {id:'laozi',  name:'老子',     tagline:'道法自然',   school:'eastern', avatar:'老'},
+];
+
+function buildPersonaGrid() {
+  const grid = document.getElementById('cards-grid');
+  grid.innerHTML = PERSONAS_META.map(p => `
+    <div class="card ${p.school}" id="card-${p.id}">
+      <div class="card-head">
+        <div class="avatar">${p.avatar}</div>
+        <div><div class="card-name">${p.name}</div><div class="card-role">${p.tagline}</div></div>
+        <div class="card-status" id="status-${p.id}">${p.school==='western'?'西方':'东方'}</div>
+      </div>
+      <div class="card-body" id="body-${p.id}">
+        <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── 并行发言 ──────────────────────────────────────────────────────────────────
+async function startPersonas() {
+  const texts = {};
+  PERSONAS_META.forEach(p => texts[p.id] = '');
+  let doneCount = 0;
+
+  const resp = await fetch(`/api/sessions/${sessionId}/personas`, { method:'POST' });
+  const reader  = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let   buffer  = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop();
+    for (const part of parts) {
+      for (const line of part.split('\n')) {
+        if (!line.startsWith('data: ')) continue;
+        let evt; try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+
+        if (evt.type === 'chunk' && evt.persona) {
+          texts[evt.persona] += evt.text;
+          const b = document.getElementById(`body-${evt.persona}`);
+          if (b) {
+            const html = texts[evt.persona]
+              .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+              .replace(/\n/g,'<br>');
+            b.innerHTML = html + '<span class="cursor"></span>';
+          }
+        }
+
+        if (evt.type === 'done' && evt.persona) {
+          doneCount++;
+          const b = document.getElementById(`body-${evt.persona}`);
+          if (b) {
+            const html = texts[evt.persona]
+              .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+              .replace(/\n/g,'<br>');
+            b.innerHTML = html;
+          }
+          const st = document.getElementById(`status-${evt.persona}`);
+          if (st) {
+            st.className = 'done-badge';
+            st.textContent = '已发言';
+          }
+          document.getElementById('status-text').textContent = `${doneCount} / 12 已发言`;
+        }
+
+        if (evt.type === 'all_done') {
+          document.getElementById('btn-summary').style.display = 'inline-block';
+          document.getElementById('status-text').textContent = '全部发言完毕';
+        }
+      }
+    }
+  }
+}
+
+// ── 进入汇总 ──────────────────────────────────────────────────────────────────
+async function goSummary() {
+  setStep(7);
+
+  // 复制议题到汇总页
+  const topicText = document.getElementById('topic-text').innerHTML;
+  if (topicText) {
+    document.getElementById('summary-topic-text').innerHTML = topicText;
+    document.getElementById('summary-topic').style.display = 'block';
+  }
+
+  const card = document.getElementById('summary-card');
+  let   md   = '';
+
+  const resp = await fetch(`/api/sessions/${sessionId}/summary`, { method:'POST' });
+  const reader  = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let   buffer  = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop();
+    for (const part of parts) {
+      for (const line of part.split('\n')) {
+        if (!line.startsWith('data: ')) continue;
+        let evt; try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+        if (evt.type === 'chunk') {
+          md += evt.text;
+          card.innerHTML = renderMd(md) + '<span class="cursor"></span>';
+          card.scrollTop = card.scrollHeight;
+        }
+        if (evt.type === 'done') {
+          card.innerHTML = renderMd(md);
+        }
+      }
+    }
+  }
+}
+
+// ── 键盘快捷键 ────────────────────────────────────────────────────────────────
+document.getElementById('user-input')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+// ── 初始化：自动触发第一轮 Facilitator ───────────────────────────────────────
+(async () => {
+  if (!sessionId) return;
+  const s = await fetch(`/api/sessions/${sessionId}`).then(r => r.json());
+  if (!s.question) return;
+
+  // 显示案主的原始问题
+  appendMsg('user', s.question.replace(/\n/g,'<br>'));
+
+  // 恢复历史（如果有）
+  if (s.facilitatorHistory && s.facilitatorHistory.length > 1) {
+    // 已有对话，渲染历史
+    for (let i = 1; i < s.facilitatorHistory.length; i++) {
+      const m = s.facilitatorHistory[i];
+      appendMsg(m.role, m.content.replace(/\n/g,'<br>'));
+    }
+    if (s.step >= 4) {
+      isLocked = true;
+      document.getElementById('btn-lock').style.display = 'block';
+      document.getElementById('btn-send').style.display = 'none';
+      document.getElementById('user-input').disabled = true;
+    }
+    return;
+  }
+
+  // 第一次：自动发送 question 给 Facilitator（message 为空，server 用 question）
+  await sendMessage('');
+})();
+</script>
+</body>
+</html>

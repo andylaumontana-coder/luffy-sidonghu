@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Luffy 人生私董会</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--amber:#EF9F27;--text:#2c2c2a;--muted:#73726c;--border:rgba(0,0,0,0.08);--bg:#f5f4f0;--card:#fff}
+body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+
+header{background:#1a1916;padding:20px 32px}
+.logo{color:#fff;font-size:20px;font-weight:600}.logo span{color:var(--amber)}
+.sub{color:rgba(255,255,255,.4);font-size:13px;margin-top:3px}
+
+.hero{flex:1;display:flex;align-items:center;justify-content:center;padding:40px 24px}
+.hero-inner{width:100%;max-width:620px}
+.tagline{font-size:26px;font-weight:600;line-height:1.4;margin-bottom:8px}
+.tagline-sub{font-size:15px;color:var(--muted);margin-bottom:32px;line-height:1.6}
+
+.input-card{background:var(--card);border:0.5px solid var(--border);border-radius:12px;padding:22px}
+label{display:block;font-size:13px;color:var(--muted);font-weight:500;margin-bottom:10px}
+textarea{width:100%;border:1px solid rgba(0,0,0,0.12);border-radius:8px;padding:13px 15px;font-size:15px;font-family:inherit;resize:vertical;min-height:90px;outline:none;transition:border-color .15s;background:#fafaf8;color:var(--text);line-height:1.65}
+textarea:focus{border-color:var(--amber)}
+textarea::placeholder{color:#c0bfb5}
+
+.demo-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+.chip{font-size:12px;padding:5px 12px;border:0.5px solid var(--border);border-radius:20px;cursor:pointer;color:var(--muted);background:var(--bg);transition:all .15s}
+.chip:hover{border-color:var(--amber);color:var(--text)}
+
+.actions{margin-top:16px;display:flex;align-items:center;gap:12px}
+button{background:#1a1916;color:#fff;border:none;border-radius:8px;padding:11px 24px;font-size:14px;font-family:inherit;font-weight:500;cursor:pointer;transition:all .15s}
+button:hover:not(:disabled){background:#2d2c28}
+button:active:not(:disabled){transform:scale(.98)}
+button:disabled{opacity:.5;cursor:not-allowed}
+#err{font-size:13px;color:#A32D2D}
+
+.personas-preview{display:flex;flex-wrap:wrap;gap:6px;margin-top:28px}
+.persona-chip{font-size:11px;padding:3px 10px;border-radius:12px}
+.w{background:#FAEEDA;color:#633806}
+.e{background:#FAECE7;color:#712B13}
+.preview-label{font-size:12px;color:var(--muted);margin-bottom:8px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Luffy <span>人生私董会</span></div>
+  <div class="sub">12 位智者，同时为你的人生抉择出谋划策</div>
+</header>
+
+<div class="hero">
+  <div class="hero-inner">
+    <h1 class="tagline">你的困惑，值得被认真对待</h1>
+    <p class="tagline-sub">不只是一个 AI 的回答——而是 12 种哲学框架的同时碰撞。<br>从乔布斯到老子，从第一性原理到道法自然。</p>
+
+    <div class="input-card">
+      <label>说说你正在面对的人生困惑</label>
+      <textarea id="question" placeholder="可以是职业选择、关系困境、人生意义……说出来就好，不需要整理好才开口。"></textarea>
+
+      <div class="demo-chips">
+        <span class="chip" onclick="setQ(this)">我要不要辞职去创业？</span>
+        <span class="chip" onclick="setQ(this)">我知道该努力，但就是做不到，怎么破？</span>
+        <span class="chip" onclick="setQ(this)">该留在大城市还是回老家？</span>
+        <span class="chip" onclick="setQ(this)">和合伙人关系越来越紧张，怎么处理？</span>
+      </div>
+
+      <div class="actions">
+        <button id="btn-start" onclick="startSession()">召集私董会 →</button>
+        <span id="err"></span>
+      </div>
+    </div>
+
+    <div class="personas-preview">
+      <p class="preview-label" style="width:100%">今日出席幕僚</p>
+      <span class="persona-chip w">乔布斯</span>
+      <span class="persona-chip w">Paul Graham</span>
+      <span class="persona-chip w">马斯克</span>
+      <span class="persona-chip w">Naval</span>
+      <span class="persona-chip w">芒格</span>
+      <span class="persona-chip w">塔勒布</span>
+      <span class="persona-chip e">曾国藩</span>
+      <span class="persona-chip e">稻盛和夫</span>
+      <span class="persona-chip e">任正非</span>
+      <span class="persona-chip e">张一鸣</span>
+      <span class="persona-chip e">王阳明</span>
+      <span class="persona-chip e">老子</span>
+    </div>
+  </div>
+</div>
+
+<script>
+function setQ(el) {
+  document.getElementById('question').value = el.textContent;
+  document.getElementById('question').focus();
+}
+
+async function startSession() {
+  const q = document.getElementById('question').value.trim();
+  if (!q) { document.getElementById('question').focus(); return; }
+
+  const btn = document.getElementById('btn-start');
+  const err = document.getElementById('err');
+  btn.disabled = true;
+  btn.textContent = '正在召集…';
+  err.textContent = '';
+
+  try {
+    const res = await fetch('/api/sessions', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ question: q }),
+    });
+    if (!res.ok) throw new Error(`${res.status}`);
+    const { id } = await res.json();
+    location.href = `/session.html?id=${id}`;
+  } catch (e) {
+    err.textContent = '出错了：' + e.message;
+    btn.disabled = false;
+    btn.textContent = '召集私董会 →';
+  }
+}
+
+document.getElementById('question').addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') startSession();
+});
+</script>
+</body>
+</html>
