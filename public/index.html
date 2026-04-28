@@ -9,9 +9,11 @@
 :root{--amber:#EF9F27;--text:#2c2c2a;--muted:#73726c;--border:rgba(0,0,0,0.08);--bg:#f5f4f0;--card:#fff}
 body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
 
-header{background:#1a1916;padding:20px 32px}
+header{background:#1a1916;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}
 .logo{color:#fff;font-size:20px;font-weight:600}.logo span{color:var(--amber)}
 .sub{color:rgba(255,255,255,.4);font-size:13px;margin-top:3px}
+.nav a{color:rgba(255,255,255,.7);font-size:13px;text-decoration:none;margin-left:16px}
+.nav a:hover{color:#fff}
 
 .hero{flex:1;display:flex;align-items:center;justify-content:center;padding:40px 24px}
 .hero-inner{width:100%;max-width:620px}
@@ -44,8 +46,11 @@ button:disabled{opacity:.5;cursor:not-allowed}
 </head>
 <body>
 <header>
-  <div class="logo">Luffy <span>人生私董会</span></div>
-  <div class="sub">12 位智者，同时为你的人生抉择出谋划策</div>
+  <div>
+    <div class="logo">Luffy <span>人生私董会</span></div>
+    <div class="sub">12 位智者，同时为你的人生抉择出谋划策</div>
+  </div>
+  <nav class="nav"><a href="/history.html">我的会话</a></nav>
 </header>
 
 <div class="hero">
