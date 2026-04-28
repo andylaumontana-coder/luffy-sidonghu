@@ -209,7 +209,7 @@ function renderMd(text) {
   return text
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/^### (.+)$/gm,'<h3>$1</h3>')
-    .replace(/^## (.+)$/gm,'<h2 style="font-size:16px;font-weight:600;margin:16px 0 8px">$2</h2>')
+    .replace(/^## (.+)$/gm,'<h3>$1</h3>')
     .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
     .replace(/^---$/gm,'<hr>')
     .replace(/^- \[ \] (.+)$/gm,'<li>☐ $1</li>')

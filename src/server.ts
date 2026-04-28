@@ -43,12 +43,40 @@ function sse(res: http.ServerResponse, data: object) {
   res.write(`data: ${JSON.stringify(data)}\n\n`);
 }
 
+const MAX_BODY_BYTES = Number(process.env.LUFFY_MAX_BODY_BYTES ?? 64 * 1024); // 64 KB
+
 function readBody(req: http.IncomingMessage): Promise<string> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     let buf = '';
-    req.on('data', (c) => (buf += c));
-    req.on('end', () => resolve(buf));
+    let size = 0;
+    let exceeded = false;
+    req.on('data', (c: Buffer) => {
+      if (exceeded) return; // drain & ignore
+      size += c.length;
+      if (size > MAX_BODY_BYTES) {
+        exceeded = true;
+        reject(new Error('body too large'));
+        return;
+      }
+      buf += c;
+    });
+    req.on('end', () => { if (!exceeded) resolve(buf); });
+    req.on('error', reject);
   });
+}
+
+async function safeReadBody(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+): Promise<string | undefined> {
+  try {
+    return await readBody(req);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!res.headersSent) json(res, 413, { error: msg });
+    req.destroy(); // close socket so we don't keep buffering
+    return undefined;
+  }
 }
 
 function json(res: http.ServerResponse, status: number, body: object) {
@@ -146,6 +174,16 @@ const TIMEOUT_FACILITATOR = Number(process.env.LUFFY_TIMEOUT_FACILITATOR_MS ?? 3
 const TIMEOUT_PERSONA     = Number(process.env.LUFFY_TIMEOUT_PERSONA_MS ?? 45_000);
 const TIMEOUT_SUMMARY     = Number(process.env.LUFFY_TIMEOUT_SUMMARY_MS ?? 60_000);
 
+// Per-session in-flight locks: prevent two concurrent personas/followup runs
+// for the same session from double-billing the same uncached persona.
+const inFlight = new Set<string>();
+function acquireLock(key: string): boolean {
+  if (inFlight.has(key)) return false;
+  inFlight.add(key);
+  return true;
+}
+function releaseLock(key: string): void { inFlight.delete(key); }
+
 async function handleCreateSession(req: http.IncomingMessage, res: http.ServerResponse) {
   const ip = clientIp(req);
   const limit = checkCreateSession(ip);
@@ -155,7 +193,8 @@ async function handleCreateSession(req: http.IncomingMessage, res: http.ServerRe
     json(res, 429, { error: `召集太频繁，请 ${limit.retryAfterSec} 秒后再试` });
     return;
   }
-  const body = await readBody(req);
+  const body = await safeReadBody(req, res);
+  if (body === undefined) return;
   let parsed: { question?: unknown };
   try { parsed = JSON.parse(body); } catch { json(res, 400, { error: 'invalid JSON' }); return; }
   const question = typeof parsed.question === 'string' ? parsed.question.trim() : '';
@@ -243,9 +282,14 @@ function handleGetSession(res: http.ServerResponse, id: string) {
 async function handleFacilitator(req: http.IncomingMessage, res: http.ServerResponse, id: string) {
   const s = getSession(id);
   if (!s) { json(res, 404, { error: 'session 不存在' }); return; }
-  const body = await readBody(req);
-  const { message } = JSON.parse(body);
-  const userMsg = message?.trim() || s.question;
+  const body = await safeReadBody(req, res);
+  if (body === undefined) return;
+  let parsed: { message?: unknown } = {};
+  if (body) {
+    try { parsed = JSON.parse(body); } catch { json(res, 400, { error: 'invalid JSON' }); return; }
+  }
+  const userMsg = (typeof parsed.message === 'string' && parsed.message.trim()) || s.question;
+  if (userMsg.length > 2000) { json(res, 400, { error: '消息太长（上限 2000 字）' }); return; }
   s.facilitatorHistory.push({ role: 'user', content: userMsg });
   appendFacilitatorMessage(id, 'user', userMsg);
   startSSE(res);
@@ -276,8 +320,14 @@ async function handleFacilitator(req: http.IncomingMessage, res: http.ServerResp
 async function handlePersonas(req: http.IncomingMessage, res: http.ServerResponse, id: string) {
   const s = getSession(id);
   if (!s) { json(res, 404, { error: 'session 不存在' }); return; }
+  const lockKey = `personas:${id}`;
+  if (!acquireLock(lockKey)) {
+    json(res, 409, { error: '该会话的幕僚发言已在进行中，请稍候再试' });
+    return;
+  }
   // optional body { personas: string[] } overrides the saved selection
-  const body = await readBody(req);
+  const body = await safeReadBody(req, res);
+  if (body === undefined) { releaseLock(lockKey); return; }
   if (body) {
     try {
       const parsed = JSON.parse(body) as { personas?: unknown };
@@ -297,31 +347,35 @@ async function handlePersonas(req: http.IncomingMessage, res: http.ServerRespons
     : PERSONAS;
   const context = [`案主困惑：${s.question}`, s.definedTopic ? `\n主持人总结的议题：\n${s.definedTopic}` : ''].join('');
   startSSE(res);
-  await Promise.all(activePersonas.map(async (persona) => {
-    sse(res, { type: 'start', persona: persona.id });
-    const cached = s.personaOutputs[persona.id];
-    if (cached && cached.length > 0) {
-      sse(res, { type: 'chunk', persona: persona.id, text: cached });
-      sse(res, { type: 'done', persona: persona.id, cached: true });
-      return;
-    }
-    const { text: fullText, error } = await streamChat(
-      {
-        model: MODEL,
-        systemPrompt: persona.systemPrompt,
-        userPrompt: context,
-        maxTokens: 450, temperature: 0.85,
-        timeoutMs: TIMEOUT_PERSONA, retries: 1,
-        sessionId: id, role: 'persona', personaId: persona.id,
-      },
-      (text) => sse(res, { type: 'chunk', persona: persona.id, text }),
-    );
-    if (error) sse(res, { type: 'error', persona: persona.id, message: error });
-    if (fullText) setPersonaOutput(id, persona.id, fullText);
-    sse(res, { type: 'done', persona: persona.id, ok: !error && !!fullText });
-  }));
-  sse(res, { type: 'all_done' });
-  res.end();
+  try {
+    await Promise.all(activePersonas.map(async (persona) => {
+      sse(res, { type: 'start', persona: persona.id });
+      const cached = s.personaOutputs[persona.id];
+      if (cached && cached.length > 0) {
+        sse(res, { type: 'chunk', persona: persona.id, text: cached });
+        sse(res, { type: 'done', persona: persona.id, cached: true });
+        return;
+      }
+      const { text: fullText, error } = await streamChat(
+        {
+          model: MODEL,
+          systemPrompt: persona.systemPrompt,
+          userPrompt: context,
+          maxTokens: 450, temperature: 0.85,
+          timeoutMs: TIMEOUT_PERSONA, retries: 1,
+          sessionId: id, role: 'persona', personaId: persona.id,
+        },
+        (text) => sse(res, { type: 'chunk', persona: persona.id, text }),
+      );
+      if (error) sse(res, { type: 'error', persona: persona.id, message: error });
+      if (fullText) setPersonaOutput(id, persona.id, fullText);
+      sse(res, { type: 'done', persona: persona.id, ok: !error && !!fullText });
+    }));
+    sse(res, { type: 'all_done' });
+    res.end();
+  } finally {
+    releaseLock(lockKey);
+  }
 }
 
 async function handlePersonaFollowup(
@@ -336,40 +390,50 @@ async function handlePersonaFollowup(
   if (!s) { json(res, 404, { error: 'session 不存在' }); return; }
   const original = s.personaOutputs[personaId];
   if (!original) { json(res, 400, { error: '该幕僚还没发言，无法追问' }); return; }
-  const body = await readBody(req);
-  let parsed: { message?: unknown };
-  try { parsed = JSON.parse(body); } catch { json(res, 400, { error: 'invalid JSON' }); return; }
-  const message = typeof parsed.message === 'string' ? parsed.message.trim() : '';
-  if (!message) { json(res, 400, { error: '请输入追问内容' }); return; }
-  if (message.length > 1000) { json(res, 400, { error: '追问太长（上限 1000 字）' }); return; }
+  const lockKey = `followup:${id}:${personaId}`;
+  if (!acquireLock(lockKey)) {
+    json(res, 409, { error: '上一轮追问还在进行中，请稍候' });
+    return;
+  }
+  try {
+    const body = await safeReadBody(req, res);
+    if (body === undefined) return;
+    let parsed: { message?: unknown };
+    try { parsed = JSON.parse(body); } catch { json(res, 400, { error: 'invalid JSON' }); return; }
+    const message = typeof parsed.message === 'string' ? parsed.message.trim() : '';
+    if (!message) { json(res, 400, { error: '请输入追问内容' }); return; }
+    if (message.length > 1000) { json(res, 400, { error: '追问太长（上限 1000 字）' }); return; }
 
-  const seedUser = `案主困惑：${s.question}` + (s.definedTopic ? `\n\n主持人锁定的议题：\n${s.definedTopic}` : '');
-  const history = s.personaFollowups[personaId] ?? [];
-  const messages: ChatMessage[] = [
-    { role: 'user', content: seedUser },
-    { role: 'assistant', content: original },
-    ...history,
-    { role: 'user', content: message },
-  ];
+    const seedUser = `案主困惑：${s.question}` + (s.definedTopic ? `\n\n主持人锁定的议题：\n${s.definedTopic}` : '');
+    const history = s.personaFollowups[personaId] ?? [];
+    const messages: ChatMessage[] = [
+      { role: 'user', content: seedUser },
+      { role: 'assistant', content: original },
+      ...history,
+      { role: 'user', content: message },
+    ];
 
-  appendPersonaFollowup(id, personaId, 'user', message);
-  startSSE(res);
-  const { text: fullText, error } = await streamChat(
-    {
-      model: MODEL,
-      systemPrompt: persona.systemPrompt,
-      userPrompt: '',
-      history: messages,
-      maxTokens: 450, temperature: 0.85,
-      timeoutMs: TIMEOUT_PERSONA, retries: 1,
-      sessionId: id, role: 'followup', personaId,
-    },
-    (text) => sse(res, { type: 'chunk', text }),
-  );
-  if (error) sse(res, { type: 'error', message: error });
-  if (fullText) appendPersonaFollowup(id, personaId, 'assistant', fullText);
-  sse(res, { type: 'done', ok: !error && !!fullText });
-  res.end();
+    appendPersonaFollowup(id, personaId, 'user', message);
+    startSSE(res);
+    const { text: fullText, error } = await streamChat(
+      {
+        model: MODEL,
+        systemPrompt: persona.systemPrompt,
+        userPrompt: '',
+        history: messages,
+        maxTokens: 450, temperature: 0.85,
+        timeoutMs: TIMEOUT_PERSONA, retries: 1,
+        sessionId: id, role: 'followup', personaId,
+      },
+      (text) => sse(res, { type: 'chunk', text }),
+    );
+    if (error) sse(res, { type: 'error', message: error });
+    if (fullText) appendPersonaFollowup(id, personaId, 'assistant', fullText);
+    sse(res, { type: 'done', ok: !error && !!fullText });
+    res.end();
+  } finally {
+    releaseLock(lockKey);
+  }
 }
 
 async function handleSummary(req: http.IncomingMessage, res: http.ServerResponse, id: string) {
@@ -452,7 +516,11 @@ const server = http.createServer(async (req, res) => {
     json(res, 404, { error: 'unknown route' }); return;
   }
   if (method === 'GET') {
-    const fp = path.join(PUBLIC_DIR, url === '/' ? 'index.html' : url.split('?')[0]);
+    const reqPath = url === '/' ? '/index.html' : url.split('?')[0];
+    const fp = path.normalize(path.join(PUBLIC_DIR, reqPath));
+    if (fp !== PUBLIC_DIR && !fp.startsWith(PUBLIC_DIR + path.sep)) {
+      res.writeHead(403); res.end('Forbidden'); return;
+    }
     try {
       const content = fs.readFileSync(fp);
       res.writeHead(200, { 'Content-Type': (MIME[path.extname(fp)] ?? 'text/plain') + '; charset=utf-8' });
@@ -465,10 +533,10 @@ const server = http.createServer(async (req, res) => {
 
 function tryListen(port: number) {
   server.listen(port)
-    .on('listening', () => { console.log(`\n🏮  Luffy 人生私董会\n👉  http://localhost:${port}\n模型: ${MODEL}\n`); })
+    .on('listening', () => { logEvent('server.start', { port, model: MODEL, fast_model: MODEL_FAST }); })
     .on('error', (e: NodeJS.ErrnoException) => {
       if (e.code === 'EADDRINUSE' && port < 3010) tryListen(port + 1);
-      else { console.error(e.message); process.exit(1); }
+      else { logEvent('server.error', { error: e.message }); process.exit(1); }
     });
 }
 tryListen(Number(process.env.PORT ?? 3001));

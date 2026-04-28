@@ -34,8 +34,14 @@ export function getUserToken(req: http.IncomingMessage): string | undefined {
   return t && /^[a-f0-9]{32}$/.test(t) ? t : undefined;
 }
 
+// X-Forwarded-For is only consulted when LUFFY_TRUST_PROXY is explicitly enabled.
+// Without a trusted reverse proxy, anyone can spoof XFF to bypass per-IP limits.
+const TRUST_PROXY = process.env.LUFFY_TRUST_PROXY === '1';
+
 export function clientIp(req: http.IncomingMessage): string {
-  const fwd = req.headers['x-forwarded-for'];
-  if (typeof fwd === 'string' && fwd.length > 0) return fwd.split(',')[0].trim();
+  if (TRUST_PROXY) {
+    const fwd = req.headers['x-forwarded-for'];
+    if (typeof fwd === 'string' && fwd.length > 0) return fwd.split(',')[0].trim();
+  }
   return req.socket.remoteAddress ?? 'unknown';
 }

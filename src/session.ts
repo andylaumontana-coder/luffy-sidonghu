@@ -141,18 +141,31 @@ export function updateSession(
   db.prepare(`UPDATE sessions SET ${fields.join(', ')} WHERE id = ?`).run(...values);
 }
 
+const appendFacilitatorTxn = db.transaction(
+  (id: string, role: 'user' | 'assistant', content: string) => {
+    const next = (countMessages.get(id) as { n: number }).n;
+    insertMessage.run(id, next, role, content);
+  },
+);
+
 export function appendFacilitatorMessage(
   id: string,
   role: 'user' | 'assistant',
   content: string,
 ): void {
-  const next = (countMessages.get(id) as { n: number }).n;
-  insertMessage.run(id, next, role, content);
+  appendFacilitatorTxn(id, role, content);
 }
 
 export function setPersonaOutput(id: string, personaId: string, content: string): void {
   upsertPersonaOutput.run(id, personaId, content);
 }
+
+const appendFollowupTxn = db.transaction(
+  (id: string, personaId: string, role: 'user' | 'assistant', content: string) => {
+    const next = (countFollowups.get(id, personaId) as { n: number }).n;
+    insertFollowup.run(id, personaId, next, role, content);
+  },
+);
 
 export function appendPersonaFollowup(
   id: string,
@@ -160,8 +173,7 @@ export function appendPersonaFollowup(
   role: 'user' | 'assistant',
   content: string,
 ): void {
-  const next = (countFollowups.get(id, personaId) as { n: number }).n;
-  insertFollowup.run(id, personaId, next, role, content);
+  appendFollowupTxn(id, personaId, role, content);
 }
 
 export interface SessionSummary {
