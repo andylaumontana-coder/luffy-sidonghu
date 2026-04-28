@@ -175,7 +175,7 @@ export interface SessionSummary {
 export function listSessionsByOwner(ownerToken: string, limit = 50): SessionSummary[] {
   const rows = db.prepare(
     `SELECT id, question, step, summary, created_at FROM sessions
-     WHERE owner_token = ? ORDER BY created_at DESC LIMIT ?`,
+     WHERE owner_token = ? ORDER BY created_at DESC, rowid DESC LIMIT ?`,
   ).all(ownerToken, limit) as { id: string; question: string; step: number; summary: string | null; created_at: number }[];
   return rows.map((r) => ({
     id: r.id,
