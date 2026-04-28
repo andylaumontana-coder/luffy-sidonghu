@@ -69,6 +69,19 @@ main{max-width:1100px;margin:0 auto;padding:28px 24px 60px}
 @media(max-width:700px){.cards-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:460px){.cards-grid{grid-template-columns:1fr}}
 
+/* ── Small screens: tighten header + summon row ── */
+@media(max-width:560px){
+  header{padding:12px 14px;flex-wrap:wrap;gap:8px}
+  .logo{font-size:15px}
+  .steps{margin-left:0;gap:0;flex-wrap:wrap}
+  .step-item{padding:3px 8px;font-size:11px}
+  main{padding:18px 14px 60px}
+  .msg-bubble{max-width:85%;font-size:13.5px}
+  .summon-wrap{flex-direction:column;align-items:stretch;gap:8px}
+  .summon-wrap .btn{width:100%}
+  #share-url{width:100%}
+}
+
 .card{background:var(--card);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;min-height:200px}
 .card.western{border-top:3px solid var(--amber)}
 .card.eastern {border-top:3px solid var(--coral)}
@@ -669,6 +682,14 @@ async function exportMarkdown() {
     lines.push('## 幕僚发言', '');
     for (const { meta, text } of cards) {
       lines.push(`### ${meta.name}·${meta.tagline}`, '', text, '');
+      const fu = s.personaFollowups?.[meta.id] ?? [];
+      if (fu.length > 0) {
+        lines.push(`#### 追问`, '');
+        for (const m of fu) {
+          const label = m.role === 'user' ? '**我**' : `**${meta.name}**`;
+          lines.push(`${label}: ${m.content}`, '');
+        }
+      }
     }
   }
   const md = lines.join('\n');

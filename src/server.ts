@@ -22,6 +22,7 @@ import {
 } from './session.js';
 import { getOrIssueUserToken, getUserToken, clientIp } from './auth.js';
 import { checkCreateSession, checkLlmCall } from './rate-limit.js';
+import { logEvent } from './log.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, '../public');
@@ -72,6 +73,10 @@ interface StreamOpts {
   temperature: number;
   timeoutMs: number;
   retries: number;
+  // observability tags (logged on completion)
+  sessionId?: string;
+  role?: 'facilitator' | 'persona' | 'summary' | 'followup';
+  personaId?: string;
 }
 
 async function streamChat(
@@ -84,8 +89,11 @@ async function streamChat(
   if (opts.history) for (const m of opts.history) messages.push(m);
   if (opts.userPrompt) messages.push({ role: 'user', content: opts.userPrompt });
 
+  const startedAt = Date.now();
+  let attempts = 0;
   let lastError: string | undefined;
   for (let attempt = 0; attempt <= opts.retries; attempt++) {
+    attempts = attempt + 1;
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), opts.timeoutMs);
     let text = '';
@@ -101,11 +109,22 @@ async function streamChat(
           if (t) { started = true; text += t; onChunk(t); }
         }
         clearTimeout(timer);
+        logEvent('llm.call', {
+          session_id: opts.sessionId, role: opts.role, persona_id: opts.personaId,
+          model: opts.model, ok: true, attempts, duration_ms: Date.now() - startedAt, text_len: text.length,
+        });
         return { text };
       } catch (innerErr: unknown) {
         clearTimeout(timer);
         lastError = innerErr instanceof Error ? innerErr.message : String(innerErr);
-        if (started) return { text, error: lastError };
+        if (started) {
+          logEvent('llm.call', {
+            session_id: opts.sessionId, role: opts.role, persona_id: opts.personaId,
+            model: opts.model, ok: false, attempts, duration_ms: Date.now() - startedAt,
+            text_len: text.length, error: lastError, mid_stream: true,
+          });
+          return { text, error: lastError };
+        }
         // mid-stream-but-no-chunk error → fall through to retry path
       }
     } catch (createErr: unknown) {
@@ -116,6 +135,10 @@ async function streamChat(
       await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
     }
   }
+  logEvent('llm.call', {
+    session_id: opts.sessionId, role: opts.role, persona_id: opts.personaId,
+    model: opts.model, ok: false, attempts, duration_ms: Date.now() - startedAt, error: lastError,
+  });
   return { text: '', error: lastError };
 }
 
@@ -127,6 +150,7 @@ async function handleCreateSession(req: http.IncomingMessage, res: http.ServerRe
   const ip = clientIp(req);
   const limit = checkCreateSession(ip);
   if (!limit.ok) {
+    logEvent('ratelimit.blocked', { kind: 'create', ip, retry_after_s: limit.retryAfterSec });
     res.setHeader('Retry-After', String(limit.retryAfterSec));
     json(res, 429, { error: `召集太频繁，请 ${limit.retryAfterSec} 秒后再试` });
     return;
@@ -153,8 +177,10 @@ function ensureOwner(req: http.IncomingMessage, res: http.ServerResponse, id: st
 }
 
 function ensureLlmQuota(req: http.IncomingMessage, res: http.ServerResponse): boolean {
-  const limit = checkLlmCall(clientIp(req));
+  const ip = clientIp(req);
+  const limit = checkLlmCall(ip);
   if (limit.ok) return true;
+  logEvent('ratelimit.blocked', { kind: 'llm', ip, retry_after_s: limit.retryAfterSec });
   res.setHeader('Retry-After', String(limit.retryAfterSec));
   json(res, 429, { error: `调用太频繁，请 ${limit.retryAfterSec} 秒后再试` });
   return false;
@@ -193,6 +219,7 @@ function handleSharedView(res: http.ServerResponse, token: string) {
     step: s.step,
     definedTopic: s.definedTopic,
     personaOutputs: s.personaOutputs,
+    personaFollowups: s.personaFollowups,
     selectedPersonas: s.selectedPersonas,
     summary: s.summary,
     createdAt: s.createdAt.getTime(),
@@ -230,6 +257,7 @@ async function handleFacilitator(req: http.IncomingMessage, res: http.ServerResp
       history: s.facilitatorHistory,
       maxTokens: 600, temperature: 0.75,
       timeoutMs: TIMEOUT_FACILITATOR, retries: 1,
+      sessionId: id, role: 'facilitator',
     },
     (text) => sse(res, { type: 'chunk', text }),
   );
@@ -284,6 +312,7 @@ async function handlePersonas(req: http.IncomingMessage, res: http.ServerRespons
         userPrompt: context,
         maxTokens: 450, temperature: 0.85,
         timeoutMs: TIMEOUT_PERSONA, retries: 1,
+        sessionId: id, role: 'persona', personaId: persona.id,
       },
       (text) => sse(res, { type: 'chunk', persona: persona.id, text }),
     );
@@ -333,6 +362,7 @@ async function handlePersonaFollowup(
       history: messages,
       maxTokens: 450, temperature: 0.85,
       timeoutMs: TIMEOUT_PERSONA, retries: 1,
+      sessionId: id, role: 'followup', personaId,
     },
     (text) => sse(res, { type: 'chunk', text }),
   );
@@ -364,6 +394,7 @@ async function handleSummary(req: http.IncomingMessage, res: http.ServerResponse
       userPrompt: prompt,
       maxTokens: 1200, temperature: 0.6,
       timeoutMs: TIMEOUT_SUMMARY, retries: 1,
+      sessionId: id, role: 'summary',
     },
     (text) => sse(res, { type: 'chunk', text }),
   );

@@ -35,6 +35,10 @@ main{max-width:760px;margin:0 auto;padding:32px 24px}
 .card-name{font-size:14px;font-weight:600}
 .card-role{font-size:11px;color:var(--muted)}
 .card-body{font-size:13px;line-height:1.7;color:var(--text)}
+.card-thread{padding:0 16px 12px;border-top:0.5px dashed var(--border);margin-top:10px;font-size:12.5px;line-height:1.7}
+.fu-msg{margin:8px 0;padding:6px 10px;border-radius:6px}
+.fu-msg.user{background:#fafaf8;color:var(--text);border:0.5px solid var(--border)}
+.fu-msg.assistant{padding-top:6px;border-radius:0}
 
 .summary-card{background:var(--card);border:0.5px solid var(--border);border-radius:12px;padding:24px 28px;font-size:14px;line-height:1.8;margin-top:8px}
 .summary-card h3{font-size:15px;font-weight:600;margin:20px 0 8px}
@@ -46,6 +50,13 @@ main{max-width:760px;margin:0 auto;padding:32px 24px}
 
 .empty{text-align:center;padding:60px 20px;color:var(--muted)}
 .err{color:#A32D2D;padding:20px 0;font-size:14px}
+
+@media(max-width:560px){
+  header{padding:12px 14px}
+  main{padding:20px 14px}
+  .summary-card{padding:18px 16px}
+  .cards-grid{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body>
@@ -136,12 +147,18 @@ function renderMd(text) {
     html += '<p class="section-title">幕僚发言</p>';
     html += '<div class="cards-grid">';
     for (const { meta, text } of cards) {
+      const fu = data.personaFollowups?.[meta.id] ?? [];
+      const threadHtml = fu.length === 0 ? '' :
+        `<div class="card-thread">${
+          fu.map(m => `<div class="fu-msg ${m.role}">${nl2br(m.content)}</div>`).join('')
+        }</div>`;
       html += `<div class="card ${meta.school}">
         <div class="card-head">
           <div class="avatar">${meta.avatar}</div>
           <div><div class="card-name">${meta.name}</div><div class="card-role">${meta.tagline}</div></div>
         </div>
         <div class="card-body">${nl2br(text)}</div>
+        ${threadHtml}
       </div>`;
     }
     html += '</div>';
