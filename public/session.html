@@ -341,23 +341,9 @@ async function lockAndProceed() {
   startPersonas();
 }
 
-// ── 构建 12 张幕僚卡片 ────────────────────────────────────────────────────────
-const PERSONAS_META = [
-  {id:'jobs',   name:'乔布斯',   tagline:'意义与热爱', school:'western', avatar:'J'},
-  {id:'pg',     name:'PG',       tagline:'本质洞见',   school:'western', avatar:'P'},
-  {id:'musk',   name:'马斯克',   tagline:'第一性原理', school:'western', avatar:'M'},
-  {id:'naval',  name:'Naval',    tagline:'财富与自由', school:'western', avatar:'N'},
-  {id:'munger', name:'芒格',     tagline:'逆向思维',   school:'western', avatar:'芒'},
-  {id:'taleb',  name:'塔勒布',   tagline:'反脆弱',     school:'western', avatar:'T'},
-  {id:'zeng',   name:'曾国藩',   tagline:'修身立业',   school:'eastern', avatar:'曾'},
-  {id:'inamori',name:'稻盛和夫', tagline:'敬天爱人',   school:'eastern', avatar:'稻'},
-  {id:'ren',    name:'任正非',   tagline:'危机长期主义',school:'eastern',avatar:'任'},
-  {id:'zhang',  name:'张一鸣',   tagline:'系统思维',   school:'eastern', avatar:'张'},
-  {id:'yangming',name:'王阳明',  tagline:'知行合一',   school:'eastern', avatar:'王'},
-  {id:'laozi',  name:'老子',     tagline:'道法自然',   school:'eastern', avatar:'老'},
-];
-
-let activePersonaIds = PERSONAS_META.map(p => p.id);
+// ── Persona metadata is loaded from /api/personas on init ─────────────────────
+let PERSONAS_META = [];
+let activePersonaIds = [];
 
 function buildPersonaGrid(selectedIds) {
   const list = (selectedIds && selectedIds.length > 0)
@@ -744,6 +730,13 @@ function renderCachedPersonas(personaOutputs) {
 
 (async () => {
   if (!sessionId) return;
+  try {
+    const meta = await fetch('/api/personas').then(r => r.json());
+    if (Array.isArray(meta.personas)) {
+      PERSONAS_META = meta.personas;
+      activePersonaIds = PERSONAS_META.map(p => p.id);
+    }
+  } catch { /* fall through with empty list — render will be empty but UI still works */ }
   const s = await fetch(`/api/sessions/${sessionId}`).then(r => r.json());
   if (!s.question) return;
 

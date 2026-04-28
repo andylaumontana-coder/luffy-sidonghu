@@ -1,7 +1,7 @@
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import 'dotenv/config';
 import OpenAI from 'openai';
 import { PERSONAS, extractRecommendedPersonaIds } from './personas.js';
@@ -468,11 +468,19 @@ async function handleSummary(req: http.IncomingMessage, res: http.ServerResponse
   res.end();
 }
 
-const server = http.createServer(async (req, res) => {
+export const server = http.createServer(async (req, res) => {
   const url = req.url ?? '/';
   const method = req.method ?? 'GET';
   if (method === 'POST' && url === '/api/sessions') { await handleCreateSession(req, res); return; }
   if (method === 'GET'  && url === '/api/sessions') { handleListSessions(req, res); return; }
+  if (method === 'GET'  && url === '/api/personas') {
+    json(res, 200, {
+      personas: PERSONAS.map(({ id, name, tagline, school, avatar }) => ({
+        id, name, tagline, school, avatar,
+      })),
+    });
+    return;
+  }
   const sm = url.match(/^\/api\/share\/([a-f0-9]+)$/);
   if (sm && method === 'GET') { handleSharedView(res, sm[1]); return; }
   const fm = url.match(/^\/api\/sessions\/([^/]+)\/personas\/([^/]+)\/followup$/);
@@ -539,4 +547,8 @@ function tryListen(port: number) {
       else { logEvent('server.error', { error: e.message }); process.exit(1); }
     });
 }
-tryListen(Number(process.env.PORT ?? 3001));
+
+// Only listen when invoked directly; importing the module (e.g. from tests)
+// gives the caller a non-listening server they can attach to an ephemeral port.
+const isMain = import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain) tryListen(Number(process.env.PORT ?? 3001));

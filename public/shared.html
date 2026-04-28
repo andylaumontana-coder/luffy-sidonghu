@@ -70,21 +70,8 @@ main{max-width:760px;margin:0 auto;padding:32px 24px}
 </main>
 
 <script>
-const PERSONAS_META = [
-  {id:'jobs',name:'乔布斯',tagline:'意义与热爱',school:'western',avatar:'J'},
-  {id:'pg',name:'PG',tagline:'本质洞见',school:'western',avatar:'P'},
-  {id:'musk',name:'马斯克',tagline:'第一性原理',school:'western',avatar:'M'},
-  {id:'naval',name:'Naval',tagline:'财富与自由',school:'western',avatar:'N'},
-  {id:'munger',name:'芒格',tagline:'逆向思维',school:'western',avatar:'芒'},
-  {id:'taleb',name:'塔勒布',tagline:'反脆弱',school:'western',avatar:'T'},
-  {id:'zeng',name:'曾国藩',tagline:'修身立业',school:'eastern',avatar:'曾'},
-  {id:'inamori',name:'稻盛和夫',tagline:'敬天爱人',school:'eastern',avatar:'稻'},
-  {id:'ren',name:'任正非',tagline:'危机长期主义',school:'eastern',avatar:'任'},
-  {id:'zhang',name:'张一鸣',tagline:'系统思维',school:'eastern',avatar:'张'},
-  {id:'yangming',name:'王阳明',tagline:'知行合一',school:'eastern',avatar:'王'},
-  {id:'laozi',name:'老子',tagline:'道法自然',school:'eastern',avatar:'老'},
-];
-const META_BY_ID = Object.fromEntries(PERSONAS_META.map(p => [p.id, p]));
+let PERSONAS_META = [];
+let META_BY_ID = {};
 
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c])}
 function nl2br(s){return escapeHtml(s).replace(/\n/g,'<br>')}
@@ -108,6 +95,14 @@ function renderMd(text) {
   const token  = params.get('t');
   const root   = document.getElementById('root');
   if (!token) { root.innerHTML = '<div class="err">缺少分享 token</div>'; return; }
+
+  try {
+    const meta = await fetch('/api/personas').then(r => r.json());
+    if (Array.isArray(meta.personas)) {
+      PERSONAS_META = meta.personas;
+      META_BY_ID = Object.fromEntries(PERSONAS_META.map(p => [p.id, p]));
+    }
+  } catch { /* render still works with empty meta — cards will just be filtered out */ }
 
   let data;
   try {
