@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>分享 · Luffy 人生私董会</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--amber:#EF9F27;--text:#2c2c2a;--muted:#73726c;--border:rgba(0,0,0,0.08);--bg:#f5f4f0;--card:#fff}
+body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+header{background:#1a1916;padding:16px 32px;display:flex;align-items:center;justify-content:space-between}
+.logo{color:#fff;font-size:18px;font-weight:600}
+.logo a{color:inherit;text-decoration:none}.logo span{color:var(--amber)}
+.nav a{color:rgba(255,255,255,.7);font-size:13px;text-decoration:none}
+.nav a:hover{color:#fff}
+
+main{max-width:760px;margin:0 auto;padding:32px 24px}
+.banner{background:#FAEEDA;color:#633806;font-size:13px;padding:10px 14px;border-radius:8px;margin-bottom:24px}
+
+.q-block{background:var(--card);border:0.5px solid var(--border);border-radius:12px;padding:18px 22px;margin-bottom:20px}
+.q-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px}
+.q-text{font-size:16px;font-weight:500;line-height:1.55}
+
+.topic-banner{background:#FAEEDA;color:#633806;border-radius:8px;padding:14px 18px;margin-bottom:24px;font-size:14px;line-height:1.7}
+.topic-label{font-size:11px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;opacity:.7}
+
+.section-title{font-size:13px;color:var(--muted);margin:24px 0 12px;text-transform:uppercase;letter-spacing:0.5px}
+.cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.card{background:var(--card);border:0.5px solid var(--border);border-radius:10px;padding:14px 16px}
+.card.western{border-left:3px solid #EF9F27}
+.card.eastern{border-left:3px solid #B33E2A}
+.card-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.avatar{width:30px;height:30px;border-radius:50%;background:#1a1916;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+.card-name{font-size:14px;font-weight:600}
+.card-role{font-size:11px;color:var(--muted)}
+.card-body{font-size:13px;line-height:1.7;color:var(--text)}
+.card-thread{padding:0 16px 12px;border-top:0.5px dashed var(--border);margin-top:10px;font-size:12.5px;line-height:1.7}
+.fu-msg{margin:8px 0;padding:6px 10px;border-radius:6px}
+.fu-msg.user{background:#fafaf8;color:var(--text);border:0.5px solid var(--border)}
+.fu-msg.assistant{padding-top:6px;border-radius:0}
+
+.summary-card{background:var(--card);border:0.5px solid var(--border);border-radius:12px;padding:24px 28px;font-size:14px;line-height:1.8;margin-top:8px}
+.summary-card h3{font-size:15px;font-weight:600;margin:20px 0 8px}
+.summary-card h3:first-child{margin-top:0}
+.summary-card ul,.summary-card ol{padding-left:20px;margin-bottom:8px}
+.summary-card li{margin-bottom:4px}
+.summary-card hr{border:none;border-top:0.5px solid var(--border);margin:16px 0}
+.summary-card blockquote{border-left:3px solid var(--amber);padding-left:14px;color:var(--muted);margin:10px 0}
+
+.empty{text-align:center;padding:60px 20px;color:var(--muted)}
+.err{color:#A32D2D;padding:20px 0;font-size:14px}
+
+@media(max-width:560px){
+  header{padding:12px 14px}
+  main{padding:20px 14px}
+  .summary-card{padding:18px 16px}
+  .cards-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><a href="/">Luffy <span>人生私董会</span></a></div>
+  <nav class="nav"><a href="/">我也试一次 →</a></nav>
+</header>
+
+<main id="root">
+  <div class="empty">加载中…</div>
+</main>
+
+<script>
+let PERSONAS_META = [];
+let META_BY_ID = {};
+
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c])}
+function nl2br(s){return escapeHtml(s).replace(/\n/g,'<br>')}
+
+function renderMd(text) {
+  return escapeHtml(text)
+    .replace(/^### (.+)$/gm,'<h3>$1</h3>')
+    .replace(/^## (.+)$/gm,'<h3>$1</h3>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/^---$/gm,'<hr>')
+    .replace(/^- \[ \] (.+)$/gm,'<li>☐ $1</li>')
+    .replace(/^- (.+)$/gm,'<li>$1</li>')
+    .replace(/(<li>.*<\/li>\n?)+/gs,(m)=>`<ul>${m}</ul>`)
+    .replace(/^&gt; (.+)$/gm,'<blockquote>$1</blockquote>')
+    .replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>')
+    .replace(/^(?!<[h|u|b|l])(.+)$/gm,'<p>$1</p>');
+}
+
+(async () => {
+  const params = new URLSearchParams(location.search);
+  const token  = params.get('t');
+  const root   = document.getElementById('root');
+  if (!token) { root.innerHTML = '<div class="err">缺少分享 token</div>'; return; }
+
+  try {
+    const meta = await fetch('/api/personas').then(r => r.json());
+    if (Array.isArray(meta.personas)) {
+      PERSONAS_META = meta.personas;
+      META_BY_ID = Object.fromEntries(PERSONAS_META.map(p => [p.id, p]));
+    }
+  } catch { /* render still works with empty meta — cards will just be filtered out */ }
+
+  let data;
+  try {
+    const resp = await fetch(`/api/share/${encodeURIComponent(token)}`);
+    if (!resp.ok) {
+      const j = await resp.json().catch(() => ({}));
+      root.innerHTML = `<div class="err">${escapeHtml(j.error || '分享链接无效')}</div>`;
+      return;
+    }
+    data = await resp.json();
+  } catch (e) {
+    root.innerHTML = `<div class="err">加载失败：${escapeHtml(e.message)}</div>`;
+    return;
+  }
+
+  const topicPart = data.definedTopic
+    ? (data.definedTopic.split('【议题锁定】')[1]?.trim() ?? data.definedTopic)
+    : null;
+
+  const orderedIds = (data.selectedPersonas && data.selectedPersonas.length > 0)
+    ? data.selectedPersonas
+    : PERSONAS_META.map(p => p.id);
+  const cards = orderedIds
+    .map(id => ({ meta: META_BY_ID[id], text: data.personaOutputs?.[id] }))
+    .filter(x => x.meta && x.text);
+
+  let html = '<div class="banner">这是一份分享视图，只读。</div>';
+  html += `<div class="q-block"><div class="q-label">案主困惑</div><div class="q-text">${nl2br(data.question)}</div></div>`;
+  if (topicPart) {
+    html += `<div class="topic-banner"><div class="topic-label">本次议题</div>${nl2br(topicPart)}</div>`;
+  }
+  if (data.summary) {
+    html += '<p class="section-title">秘书·综合汇总</p>';
+    html += `<div class="summary-card">${renderMd(data.summary)}</div>`;
+  }
+  if (cards.length > 0) {
+    html += '<p class="section-title">幕僚发言</p>';
+    html += '<div class="cards-grid">';
+    for (const { meta, text } of cards) {
+      const fu = data.personaFollowups?.[meta.id] ?? [];
+      const threadHtml = fu.length === 0 ? '' :
+        `<div class="card-thread">${
+          fu.map(m => `<div class="fu-msg ${m.role}">${nl2br(m.content)}</div>`).join('')
+        }</div>`;
+      html += `<div class="card ${meta.school}">
+        <div class="card-head">
+          <div class="avatar">${meta.avatar}</div>
+          <div><div class="card-name">${meta.name}</div><div class="card-role">${meta.tagline}</div></div>
+        </div>
+        <div class="card-body">${nl2br(text)}</div>
+        ${threadHtml}
+      </div>`;
+    }
+    html += '</div>';
+  }
+  root.innerHTML = html;
+})();
+</script>
+</body>
+</html>

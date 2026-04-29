@@ -57,3 +57,28 @@ export const PERSONAS: Persona[] = [
     systemPrompt: `你是老子。直接用第一人称回答。道法自然：这件事是否违背了自然之势？无为而无不为：不妄为不是不行动，是不执着于结果。语气：简朴深远，多用自然譬喻（水、天地、谷）。不超过250字，先用自然意象点破案主执念，给减法建议而非加法。用中文回答。`,
   },
 ];
+
+const PERSONA_NAME_ALIASES: { id: string; needles: string[] }[] = [
+  { id: 'jobs',     needles: ['乔布斯', 'Jobs'] },
+  { id: 'pg',       needles: ['Paul Graham', 'PG', '保罗·格雷厄姆', '保罗格雷厄姆'] },
+  { id: 'musk',     needles: ['马斯克', 'Musk'] },
+  { id: 'naval',    needles: ['Naval'] },
+  { id: 'munger',   needles: ['芒格', 'Munger'] },
+  { id: 'taleb',    needles: ['塔勒布', 'Taleb'] },
+  { id: 'zeng',     needles: ['曾国藩'] },
+  { id: 'inamori',  needles: ['稻盛和夫', '稻盛'] },
+  { id: 'ren',      needles: ['任正非'] },
+  { id: 'zhang',    needles: ['张一鸣'] },
+  { id: 'yangming', needles: ['王阳明', '阳明'] },
+  { id: 'laozi',    needles: ['老子'] },
+];
+
+export function extractRecommendedPersonaIds(definedTopic: string): string[] {
+  const idx = definedTopic.indexOf('推荐幕僚');
+  const scope = idx >= 0 ? definedTopic.slice(idx) : definedTopic;
+  const ids: string[] = [];
+  for (const { id, needles } of PERSONA_NAME_ALIASES) {
+    if (needles.some((n) => scope.includes(n))) ids.push(id);
+  }
+  return ids;
+}

@@ -69,6 +69,19 @@ main{max-width:1100px;margin:0 auto;padding:28px 24px 60px}
 @media(max-width:700px){.cards-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:460px){.cards-grid{grid-template-columns:1fr}}
 
+/* ── Small screens: tighten header + summon row ── */
+@media(max-width:560px){
+  header{padding:12px 14px;flex-wrap:wrap;gap:8px}
+  .logo{font-size:15px}
+  .steps{margin-left:0;gap:0;flex-wrap:wrap}
+  .step-item{padding:3px 8px;font-size:11px}
+  main{padding:18px 14px 60px}
+  .msg-bubble{max-width:85%;font-size:13.5px}
+  .summon-wrap{flex-direction:column;align-items:stretch;gap:8px}
+  .summon-wrap .btn{width:100%}
+  #share-url{width:100%}
+}
+
 .card{background:var(--card);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;min-height:200px}
 .card.western{border-top:3px solid var(--amber)}
 .card.eastern {border-top:3px solid var(--coral)}
@@ -89,6 +102,19 @@ main{max-width:1100px;margin:0 auto;padding:28px 24px 60px}
 .dot{width:5px;height:5px;border-radius:50%;background:var(--muted);animation:thinking 1s ease-in-out infinite}
 .dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
 .done-badge{font-size:10px;background:#EAF3DE;color:#27500A;padding:2px 7px;border-radius:8px}
+
+/* ── Followup thread ── */
+.card-thread{padding:0 14px;font-size:12.5px;line-height:1.7}
+.card-thread .fu-msg{margin:8px 0;padding:8px 10px;border-radius:6px}
+.card-thread .fu-msg.user{background:#fafaf8;color:var(--text);border:0.5px solid var(--border)}
+.card-thread .fu-msg.assistant{background:transparent;color:var(--text);border-top:0.5px dashed var(--border);padding-top:8px;border-radius:0}
+.card-fu-toggle{margin:8px 14px 12px;background:transparent;border:0.5px solid var(--border);color:var(--muted);font-size:12px;padding:4px 10px;border-radius:14px;cursor:pointer;align-self:flex-start}
+.card-fu-toggle:hover{border-color:var(--amber);color:var(--text)}
+.card-fu{padding:0 14px 12px;display:flex;flex-direction:column;gap:6px}
+.card-fu textarea{width:100%;border:1px solid var(--border);border-radius:6px;padding:7px 9px;font-size:12.5px;font-family:inherit;resize:vertical;min-height:48px;background:#fafaf8}
+.card-fu textarea:focus{outline:none;border-color:var(--amber)}
+.card-fu button{align-self:flex-end;background:#1a1916;color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:12px;cursor:pointer}
+.card-fu button:disabled{opacity:.5;cursor:not-allowed}
 
 /* ── Summon button ── */
 .summon-wrap{margin-top:24px;display:flex;align-items:center;gap:14px}
@@ -152,6 +178,7 @@ main{max-width:1100px;margin:0 auto;padding:28px 24px 60px}
     <div class="cards-grid" id="cards-grid"></div>
     <div class="summon-wrap">
       <button class="btn btn-amber" id="btn-summary" onclick="goSummary()" style="display:none">查看汇总报告 →</button>
+      <button class="btn" id="btn-retry-personas" onclick="retryPersonas()" style="display:none">重试失败的幕僚</button>
       <span id="status-text"></span>
     </div>
   </div>
@@ -166,6 +193,12 @@ main{max-width:1100px;margin:0 auto;padding:28px 24px 60px}
     <div class="summary-card" id="summary-card">
       <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
     </div>
+    <div class="summon-wrap" style="margin-top:16px;gap:8px;flex-wrap:wrap">
+      <button class="btn" id="btn-share" onclick="createShareLink()">分享此会话</button>
+      <button class="btn" id="btn-export" onclick="exportMarkdown()">导出 Markdown</button>
+      <input id="share-url" readonly style="display:none;flex:1;min-width:220px;padding:9px 11px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:ui-monospace,monospace">
+      <span id="share-hint" style="font-size:12px;color:var(--muted)"></span>
+    </div>
   </div>
 
 </main>
@@ -176,7 +209,7 @@ function renderMd(text) {
   return text
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/^### (.+)$/gm,'<h3>$1</h3>')
-    .replace(/^## (.+)$/gm,'<h2 style="font-size:16px;font-weight:600;margin:16px 0 8px">$2</h2>')
+    .replace(/^## (.+)$/gm,'<h3>$1</h3>')
     .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
     .replace(/^---$/gm,'<hr>')
     .replace(/^- \[ \] (.+)$/gm,'<li>☐ $1</li>')
@@ -301,40 +334,24 @@ async function sendMessage(autoMsg = null) {
 
 // ── 锁定议题 → 进入 Step 4 ────────────────────────────────────────────────────
 async function lockAndProceed() {
-  // 读取 session 获取定义的议题
   const s = await fetch(`/api/sessions/${sessionId}`).then(r => r.json());
-  buildPersonaGrid();
+  buildPersonaGrid(s.selectedPersonas);
   setStep(4);
-
-  // 展示议题摘要（提取【议题锁定】后的文字）
-  if (s.definedTopic) {
-    const topicPart = s.definedTopic.split('【议题锁定】')[1]?.trim() ?? s.definedTopic;
-    document.getElementById('topic-text').innerHTML = topicPart.replace(/\n/g,'<br>');
-    document.getElementById('topic-banner').style.display = 'block';
-  }
-
+  renderTopicBanner(s.definedTopic);
   startPersonas();
 }
 
-// ── 构建 12 张幕僚卡片 ────────────────────────────────────────────────────────
-const PERSONAS_META = [
-  {id:'jobs',   name:'乔布斯',   tagline:'意义与热爱', school:'western', avatar:'J'},
-  {id:'pg',     name:'PG',       tagline:'本质洞见',   school:'western', avatar:'P'},
-  {id:'musk',   name:'马斯克',   tagline:'第一性原理', school:'western', avatar:'M'},
-  {id:'naval',  name:'Naval',    tagline:'财富与自由', school:'western', avatar:'N'},
-  {id:'munger', name:'芒格',     tagline:'逆向思维',   school:'western', avatar:'芒'},
-  {id:'taleb',  name:'塔勒布',   tagline:'反脆弱',     school:'western', avatar:'T'},
-  {id:'zeng',   name:'曾国藩',   tagline:'修身立业',   school:'eastern', avatar:'曾'},
-  {id:'inamori',name:'稻盛和夫', tagline:'敬天爱人',   school:'eastern', avatar:'稻'},
-  {id:'ren',    name:'任正非',   tagline:'危机长期主义',school:'eastern',avatar:'任'},
-  {id:'zhang',  name:'张一鸣',   tagline:'系统思维',   school:'eastern', avatar:'张'},
-  {id:'yangming',name:'王阳明',  tagline:'知行合一',   school:'eastern', avatar:'王'},
-  {id:'laozi',  name:'老子',     tagline:'道法自然',   school:'eastern', avatar:'老'},
-];
+// ── Persona metadata is loaded from /api/personas on init ─────────────────────
+let PERSONAS_META = [];
+let activePersonaIds = [];
 
-function buildPersonaGrid() {
+function buildPersonaGrid(selectedIds) {
+  const list = (selectedIds && selectedIds.length > 0)
+    ? PERSONAS_META.filter(p => selectedIds.includes(p.id))
+    : PERSONAS_META;
+  activePersonaIds = list.map(p => p.id);
   const grid = document.getElementById('cards-grid');
-  grid.innerHTML = PERSONAS_META.map(p => `
+  grid.innerHTML = list.map(p => `
     <div class="card ${p.school}" id="card-${p.id}">
       <div class="card-head">
         <div class="avatar">${p.avatar}</div>
@@ -344,17 +361,37 @@ function buildPersonaGrid() {
       <div class="card-body" id="body-${p.id}">
         <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
       </div>
+      <div class="card-thread" id="thread-${p.id}"></div>
+      <button class="card-fu-toggle" id="fu-toggle-${p.id}"
+              onclick="toggleFollowup('${p.id}')" style="display:none">继续追问</button>
+      <div class="card-fu" id="fu-${p.id}" style="display:none">
+        <textarea id="fu-input-${p.id}" rows="2" placeholder="向${p.name}追问…"></textarea>
+        <button onclick="sendFollowup('${p.id}')">发送</button>
+      </div>
     </div>
   `).join('');
 }
 
 // ── 并行发言 ──────────────────────────────────────────────────────────────────
 async function startPersonas() {
+  const total = activePersonaIds.length;
   const texts = {};
-  PERSONAS_META.forEach(p => texts[p.id] = '');
-  let doneCount = 0;
+  const failed = new Set();
+  activePersonaIds.forEach(id => texts[id] = '');
+  let okCount = 0;
 
-  const resp = await fetch(`/api/sessions/${sessionId}/personas`, { method:'POST' });
+  document.getElementById('btn-retry-personas').style.display = 'none';
+
+  const resp = await fetch(`/api/sessions/${sessionId}/personas`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ personas: activePersonaIds }),
+  });
+  if (!resp.ok) {
+    document.getElementById('status-text').textContent = `请求失败 (${resp.status})，可点击重试`;
+    document.getElementById('btn-retry-personas').style.display = 'inline-block';
+    return;
+  }
   const reader  = resp.body.getReader();
   const decoder = new TextDecoder();
   let   buffer  = '';
@@ -381,30 +418,63 @@ async function startPersonas() {
           }
         }
 
+        if (evt.type === 'error' && evt.persona) {
+          failed.add(evt.persona);
+        }
+
         if (evt.type === 'done' && evt.persona) {
-          doneCount++;
+          const ok = evt.ok !== false && !failed.has(evt.persona);
           const b = document.getElementById(`body-${evt.persona}`);
           if (b) {
-            const html = texts[evt.persona]
-              .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-              .replace(/\n/g,'<br>');
-            b.innerHTML = html;
+            if (ok && texts[evt.persona]) {
+              const html = texts[evt.persona]
+                .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                .replace(/\n/g,'<br>');
+              b.innerHTML = html;
+            } else {
+              b.innerHTML = '<div style="color:#A32D2D;font-size:13px">发言失败，可在下方点击「重试失败的幕僚」</div>';
+              failed.add(evt.persona);
+            }
           }
           const st = document.getElementById(`status-${evt.persona}`);
           if (st) {
-            st.className = 'done-badge';
-            st.textContent = '已发言';
+            if (ok) { st.className = 'done-badge'; st.textContent = '已发言'; okCount++; showFollowupTrigger(evt.persona); }
+            else    { st.className = 'card-status'; st.textContent = '失败'; st.style.color = '#A32D2D'; }
           }
-          document.getElementById('status-text').textContent = `${doneCount} / 12 已发言`;
+          document.getElementById('status-text').textContent =
+            failed.size > 0 ? `${okCount} / ${total} 已发言，${failed.size} 位失败` : `${okCount} / ${total} 已发言`;
         }
 
         if (evt.type === 'all_done') {
-          document.getElementById('btn-summary').style.display = 'inline-block';
-          document.getElementById('status-text').textContent = '全部发言完毕';
+          if (failed.size === 0) {
+            document.getElementById('btn-summary').style.display = 'inline-block';
+            document.getElementById('status-text').textContent = '全部发言完毕';
+          } else {
+            document.getElementById('btn-retry-personas').style.display = 'inline-block';
+            if (okCount * 2 >= total) document.getElementById('btn-summary').style.display = 'inline-block';
+          }
         }
       }
     }
   }
+}
+
+async function retryPersonas() {
+  const btn = document.getElementById('btn-retry-personas');
+  btn.disabled = true; btn.textContent = '重试中…';
+  for (const id of activePersonaIds) {
+    const st = document.getElementById(`status-${id}`);
+    if (st && st.textContent === '失败') {
+      const meta = PERSONAS_META.find(p => p.id === id);
+      st.style.color = '';
+      st.className = 'card-status';
+      st.textContent = meta && meta.school === 'western' ? '西方' : '东方';
+      const b = document.getElementById(`body-${id}`);
+      if (b) b.innerHTML = '<div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';
+    }
+  }
+  await startPersonas();
+  btn.disabled = false; btn.textContent = '重试失败的幕僚';
 }
 
 // ── 进入汇总 ──────────────────────────────────────────────────────────────────
@@ -449,37 +519,273 @@ async function goSummary() {
   }
 }
 
+// ── 追问轮 ───────────────────────────────────────────────────────────────────
+function appendFollowupMsg(personaId, role, text) {
+  const thread = document.getElementById(`thread-${personaId}`);
+  if (!thread) return null;
+  const div = document.createElement('div');
+  div.className = `fu-msg ${role}`;
+  const safe = String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  div.innerHTML = safe;
+  thread.appendChild(div);
+  return div;
+}
+
+function renderFollowupThread(personaId, messages) {
+  const thread = document.getElementById(`thread-${personaId}`);
+  if (!thread) return;
+  thread.innerHTML = '';
+  for (const m of messages) appendFollowupMsg(personaId, m.role, m.content);
+}
+
+function showFollowupTrigger(personaId) {
+  const btn = document.getElementById(`fu-toggle-${personaId}`);
+  if (btn) btn.style.display = 'inline-block';
+}
+
+function toggleFollowup(personaId) {
+  const panel = document.getElementById(`fu-${personaId}`);
+  if (!panel) return;
+  const open = panel.style.display !== 'none';
+  panel.style.display = open ? 'none' : 'flex';
+  if (!open) document.getElementById(`fu-input-${personaId}`)?.focus();
+}
+
+async function sendFollowup(personaId) {
+  const input = document.getElementById(`fu-input-${personaId}`);
+  const panel = document.getElementById(`fu-${personaId}`);
+  const sendBtn = panel?.querySelector('button');
+  const msg = (input?.value || '').trim();
+  if (!msg) { input?.focus(); return; }
+  input.disabled = true; if (sendBtn) sendBtn.disabled = true;
+
+  appendFollowupMsg(personaId, 'user', msg);
+  const bubble = appendFollowupMsg(personaId, 'assistant', '');
+  if (bubble) bubble.innerHTML = '<span class="cursor"></span>';
+
+  let full = '';
+  try {
+    const resp = await fetch(`/api/sessions/${sessionId}/personas/${personaId}/followup`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ message: msg }),
+    });
+    if (!resp.ok) {
+      const j = await resp.json().catch(() => ({}));
+      if (bubble) bubble.innerHTML = `<span style="color:#A32D2D">追问失败：${(j.error||resp.status)}</span>`;
+      return;
+    }
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n'); buffer = parts.pop();
+      for (const part of parts) {
+        for (const line of part.split('\n')) {
+          if (!line.startsWith('data: ')) continue;
+          let evt; try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+          if (evt.type === 'chunk') {
+            full += evt.text;
+            if (bubble) bubble.innerHTML = full
+              .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+              .replace(/\n/g,'<br>') + '<span class="cursor"></span>';
+          }
+          if (evt.type === 'error' && bubble) {
+            bubble.innerHTML = `<span style="color:#A32D2D">${(evt.message||'失败')}</span>`;
+          }
+          if (evt.type === 'done' && bubble) {
+            if (full) {
+              bubble.innerHTML = full
+                .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                .replace(/\n/g,'<br>');
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    if (bubble) bubble.innerHTML = `<span style="color:#A32D2D">网络错误：${e.message}</span>`;
+  } finally {
+    input.value = '';
+    input.disabled = false;
+    if (sendBtn) sendBtn.disabled = false;
+    input.focus();
+  }
+}
+
+// ── 分享 ──────────────────────────────────────────────────────────────────────
+async function createShareLink() {
+  const btn  = document.getElementById('btn-share');
+  const hint = document.getElementById('share-hint');
+  const inp  = document.getElementById('share-url');
+  btn.disabled = true;
+  try {
+    const r = await fetch(`/api/sessions/${sessionId}/share`, { method:'POST' });
+    if (!r.ok) throw new Error(`${r.status}`);
+    const { url } = await r.json();
+    const fullUrl = location.origin + url;
+    inp.value = fullUrl;
+    inp.style.display = 'inline-block';
+    try {
+      await navigator.clipboard.writeText(fullUrl);
+      hint.textContent = '已复制到剪贴板';
+    } catch {
+      inp.select();
+      hint.textContent = '点击地址 Ctrl/Cmd+C 复制';
+    }
+  } catch (e) {
+    hint.textContent = '生成失败：' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── 导出 Markdown ────────────────────────────────────────────────────────────
+async function exportMarkdown() {
+  const s = await fetch(`/api/sessions/${sessionId}`).then(r => r.json());
+  const lines = [];
+  lines.push(`# Luffy 人生私董会`);
+  lines.push('');
+  lines.push(`**案主困惑：** ${s.question}`);
+  lines.push('');
+  if (s.definedTopic) {
+    const topic = s.definedTopic.split('【议题锁定】')[1]?.trim() ?? s.definedTopic;
+    lines.push('## 本次议题', '', topic, '');
+  }
+  if (s.summary) {
+    lines.push('## 秘书·综合汇总', '', s.summary, '');
+  }
+  const ids = (s.selectedPersonas && s.selectedPersonas.length > 0)
+    ? s.selectedPersonas
+    : PERSONAS_META.map(p => p.id);
+  const cards = ids
+    .map(id => ({ meta: PERSONAS_META.find(p => p.id === id), text: s.personaOutputs?.[id] }))
+    .filter(x => x.meta && x.text);
+  if (cards.length > 0) {
+    lines.push('## 幕僚发言', '');
+    for (const { meta, text } of cards) {
+      lines.push(`### ${meta.name}·${meta.tagline}`, '', text, '');
+      const fu = s.personaFollowups?.[meta.id] ?? [];
+      if (fu.length > 0) {
+        lines.push(`#### 追问`, '');
+        for (const m of fu) {
+          const label = m.role === 'user' ? '**我**' : `**${meta.name}**`;
+          lines.push(`${label}: ${m.content}`, '');
+        }
+      }
+    }
+  }
+  const md = lines.join('\n');
+  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const stamp = new Date().toISOString().slice(0,10);
+  a.download = `luffy-${stamp}-${sessionId.slice(0,6)}.md`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 // ── 键盘快捷键 ────────────────────────────────────────────────────────────────
 document.getElementById('user-input')?.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 });
 
-// ── 初始化：自动触发第一轮 Facilitator ───────────────────────────────────────
+// ── 初始化：根据 step 恢复到正确阶段 ────────────────────────────────────────
+function renderTopicBanner(definedTopic) {
+  if (!definedTopic) return;
+  const topicPart = definedTopic.split('【议题锁定】')[1]?.trim() ?? definedTopic;
+  document.getElementById('topic-text').innerHTML = topicPart.replace(/\n/g,'<br>');
+  document.getElementById('topic-banner').style.display = 'block';
+  document.getElementById('summary-topic-text').innerHTML = topicPart.replace(/\n/g,'<br>');
+  document.getElementById('summary-topic').style.display = 'block';
+}
+
+function renderCachedPersonas(personaOutputs) {
+  const total = activePersonaIds.length;
+  let doneCount = 0;
+  for (const id of activePersonaIds) {
+    const text = personaOutputs?.[id];
+    if (!text) continue;
+    doneCount++;
+    const b = document.getElementById(`body-${id}`);
+    if (b) {
+      b.innerHTML = text
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/\n/g,'<br>');
+    }
+    const st = document.getElementById(`status-${id}`);
+    if (st) { st.className = 'done-badge'; st.textContent = '已发言'; }
+    showFollowupTrigger(id);
+  }
+  document.getElementById('status-text').textContent =
+    doneCount === total ? '全部发言完毕' : `${doneCount} / ${total} 已发言`;
+  if (doneCount === total) {
+    document.getElementById('btn-summary').style.display = 'inline-block';
+  }
+  return doneCount;
+}
+
 (async () => {
   if (!sessionId) return;
+  try {
+    const meta = await fetch('/api/personas').then(r => r.json());
+    if (Array.isArray(meta.personas)) {
+      PERSONAS_META = meta.personas;
+      activePersonaIds = PERSONAS_META.map(p => p.id);
+    }
+  } catch { /* fall through with empty list — render will be empty but UI still works */ }
   const s = await fetch(`/api/sessions/${sessionId}`).then(r => r.json());
   if (!s.question) return;
 
-  // 显示案主的原始问题
+  // 案主原始问题始终展示
   appendMsg('user', s.question.replace(/\n/g,'<br>'));
 
-  // 恢复历史（如果有）
+  // 把已有的 facilitator 对话回放出来
   if (s.facilitatorHistory && s.facilitatorHistory.length > 1) {
-    // 已有对话，渲染历史
     for (let i = 1; i < s.facilitatorHistory.length; i++) {
       const m = s.facilitatorHistory[i];
       appendMsg(m.role, m.content.replace(/\n/g,'<br>'));
     }
-    if (s.step >= 4) {
-      isLocked = true;
-      document.getElementById('btn-lock').style.display = 'block';
-      document.getElementById('btn-send').style.display = 'none';
-      document.getElementById('user-input').disabled = true;
+  }
+
+  // step 7：汇总已生成，直接跳到汇总页并回放
+  if (s.step >= 7) {
+    isLocked = true;
+    buildPersonaGrid(s.selectedPersonas);
+    renderTopicBanner(s.definedTopic);
+    renderCachedPersonas(s.personaOutputs ?? {});
+    setStep(7);
+    if (s.summary) {
+      document.getElementById('summary-card').innerHTML = renderMd(s.summary);
+    } else {
+      await goSummary();
     }
     return;
   }
 
-  // 第一次：自动发送 question 给 Facilitator（message 为空，server 用 question）
+  // step 4：议题已锁定，跳到幕僚阶段，回放已写入的发言，再续跑剩余
+  if (s.step >= 4) {
+    isLocked = true;
+    buildPersonaGrid(s.selectedPersonas);
+    renderTopicBanner(s.definedTopic);
+    setStep(4);
+    const done = renderCachedPersonas(s.personaOutputs ?? {});
+    if (s.personaFollowups) {
+      for (const [pid, msgs] of Object.entries(s.personaFollowups)) {
+        renderFollowupThread(pid, msgs);
+      }
+    }
+    if (done < activePersonaIds.length) await startPersonas();
+    return;
+  }
+
+  // step 2：还在 facilitator 阶段
+  if (s.facilitatorHistory && s.facilitatorHistory.length > 1) return;
+
+  // 第一次访问：自动发送 question 给 Facilitator
   await sendMessage('');
 })();
 </script>
