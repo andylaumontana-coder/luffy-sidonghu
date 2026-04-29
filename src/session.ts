@@ -6,6 +6,19 @@ export interface ChatMessage {
   content: string;
 }
 
+// Semantic status names for the numeric `step` column.
+// DB stays numeric for migration safety; the API surfaces both.
+//   2 → clarifying:  facilitator round (gathering tension)
+//   4 → speaking:    topic locked, personas in flight
+//   7 → completed:   secretary summary written
+export type SessionStatus = 'clarifying' | 'speaking' | 'completed';
+
+export function statusForStep(step: number): SessionStatus {
+  if (step >= 7) return 'completed';
+  if (step >= 4) return 'speaking';
+  return 'clarifying';
+}
+
 export interface Session {
   id: string;
   question: string;

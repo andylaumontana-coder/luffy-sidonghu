@@ -50,7 +50,7 @@ h1{font-size:22px;font-weight:600;margin-bottom:4px}
 </main>
 
 <script>
-const STEP_LABEL = { 2: '澄清中', 4: '幕僚发言中', 7: '已完成' };
+const STATUS_LABEL = { clarifying: '澄清中', speaking: '幕僚发言中', completed: '已完成' };
 
 function fmtDate(ms) {
   const d = new Date(ms);
@@ -74,7 +74,7 @@ function fmtDate(ms) {
         <div class="q">${escapeHtml(s.question)}</div>
         <div class="meta">
           <span>${fmtDate(s.createdAt)}</span>
-          <span class="badge ${s.hasSummary ? 'done' : ''}">${STEP_LABEL[s.step] || ''}</span>
+          <span class="badge ${s.hasSummary ? 'done' : ''}">${STATUS_LABEL[s.status] || ''}</span>
         </div>
       </a>
     `).join('');

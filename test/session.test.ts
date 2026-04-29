@@ -19,6 +19,7 @@ const {
   getOrCreateShareToken,
   clearShareToken,
   getSessionByShareToken,
+  statusForStep,
 } = await import('../src/session.ts');
 
 test('createSession + getSession roundtrip', () => {
@@ -109,4 +110,13 @@ test('share token lifecycle: create → idempotent → resolve → revoke', () =
 
 test('share token returns null for unknown session', () => {
   assert.equal(getOrCreateShareToken('does-not-exist'), null);
+});
+
+test('statusForStep maps numeric step to semantic status', () => {
+  assert.equal(statusForStep(2), 'clarifying');
+  assert.equal(statusForStep(4), 'speaking');
+  assert.equal(statusForStep(7), 'completed');
+  assert.equal(statusForStep(1), 'clarifying'); // < 4 falls into clarifying
+  assert.equal(statusForStep(5), 'speaking');   // 4..6 → speaking
+  assert.equal(statusForStep(99), 'completed'); // >= 7 → completed
 });
